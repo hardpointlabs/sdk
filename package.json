@@ -4,7 +4,7 @@
   "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hardpointlabs/length-prefixed-stream.git"
+    "url": "https://github.com/hardpointlabs/sdk"
   },
   "license": "Apache-2.0",
   "author": "Hardpoint Labs",
