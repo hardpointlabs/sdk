@@ -1,15 +1,21 @@
 {
   "name": "@hardpointlabs/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
     "url": "github.com/hardpointlabs/sdk"
   },
   "license": "Apache-2.0",
-  "author": "",
+  "author": "Hardpoint Labs",
   "type": "module",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "directories": {
+    "src": "src",
+    "dist": "dist",
+    "test": "test"
+  },
   "scripts": {
     "build": "npx tsc && cp ca.crt dist/",
     "lint": "eslint src/",
