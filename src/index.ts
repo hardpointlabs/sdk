@@ -1,9 +1,15 @@
+import * as fs from "node:fs";
 import * as net from "node:net";
 import * as tls from "node:tls";
 import * as stream from "node:stream";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const RELAY_HOST = "relay.hardpoint.dev";
 const RELAY_PORT = 443;
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CA_CERT = fs.readFileSync(path.join(__dirname, "ca.crt"));
 
 function getOidcToken(): string | undefined {
     return process.env.VERCEL_OIDC_TOKEN;
@@ -24,7 +30,11 @@ function connectTunnel({
         const socket = tls.connect(
             relayPort,
             relayHost,
-            { servername: relayHost },
+            {
+                servername: relayHost,
+                ca: CA_CERT,
+                rejectUnauthorized: true,
+            },
             () => {}
         );
 
