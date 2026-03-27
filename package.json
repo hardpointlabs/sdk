@@ -1,7 +1,7 @@
 {
   "name": "@hardpointlabs/sdk",
   "version": "1.0.0",
-  "description": "",
+  "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
     "url": "github.com/hardpointlabs/sdk"
