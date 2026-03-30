@@ -4,6 +4,6 @@ dist-test
 tsconfig.test.json
 .github
 benchmark.mjs
-ca.crt
 .eslintrc.json
 tsconfig.json
+lib

@@ -1,6 +1,6 @@
 {
   "name": "@hardpointlabs/sdk",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
     "test": "test"
   },
   "scripts": {
-    "build": "npx tsc && cp ca.crt dist/",
+    "build": "npx tsc && cp ./lib/ca.crt ./dist/",
     "lint": "eslint src/",
     "test": "echo \"Error: no test specified\" && exit 0"
   },
