@@ -1,6 +1,6 @@
 {
   "name": "@hardpointlabs/sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
@@ -31,5 +31,14 @@
   },
   "dependencies": {
     "@hardpointlabs/length-prefixed-stream": "^2.0.5"
+  },
+  "bugs": {
+    "url": "https://github.com/hardpointlabs/sdk/issues"
+  },
+  "homepage": "https://github.com/hardpointlabs/sdk",
+    "release": {
+    "branches": [
+      "master"
+    ]
   }
 }
