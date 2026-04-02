@@ -111,7 +111,7 @@ function generateSocketName(): string {
   return path.join("/tmp", `hp-${randomSuffix}.sock`);
 }
 
-class UnixSocketHandle {
+class UnixSocketHandle implements UnixSocket {
   private readonly socketPath: string;
   private readonly server: net.Server;
   private readonly tunnelSocket: net.Socket;
@@ -181,7 +181,7 @@ export interface ConnectOptions {
   service: string;
 }
 
-export interface UnixSocket {
+export interface UnixSocket extends AsyncDisposable {
   readonly socketName: string;
 }
 
