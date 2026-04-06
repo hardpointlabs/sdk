@@ -27,6 +27,7 @@ function connectTunnel({
   token: string;
   service: string;
 }): Promise<net.Socket> {
+  const rejectUnauthorized = relayHost === 'localhost' ? false : true;
   return new Promise((resolve, reject) => {
     const socket = tls.connect(
       relayPort,
@@ -34,7 +35,7 @@ function connectTunnel({
       {
         servername: relayHost,
         ca: CA_CERT,
-        rejectUnauthorized: true,
+        rejectUnauthorized: rejectUnauthorized,
       },
       () => { }
     );
@@ -79,7 +80,44 @@ function connectTunnel({
   });
 }
 
-function socketToDuplex(socket: net.Socket): stream.Duplex {
+class TcpSocketHandleImpl implements TcpSocketHandle {
+
+  public readonly connection: stream.Duplex;
+
+  constructor(connection: stream.Duplex) {
+    this.connection = connection;
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.dispose();
+  }
+
+  private async dispose(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const connection = this.connection;
+
+      const cleanup = () => {
+        connection.removeAllListeners();
+        resolve();
+      };
+
+      const forceClose = () => {
+        cleanup();
+      };
+
+      const timeoutId = setTimeout(forceClose, 2000);
+
+      connection.on("close", () => {
+        clearTimeout(timeoutId);
+        cleanup();
+      });
+
+      connection.end();
+    });
+  }
+}
+
+function socketToDuplex(socket: net.Socket): TcpSocketHandle {
   const duplex = new stream.Duplex({
     read() { },
     write(chunk, encoding, callback) {
@@ -103,27 +141,41 @@ function socketToDuplex(socket: net.Socket): stream.Duplex {
     duplex.emit("error", err);
   });
 
-  return duplex;
+  return new TcpSocketHandleImpl(duplex);
 }
 
 function generateSocketName(): string {
-  const randomSuffix = crypto.randomBytes(8).toString("hex");
-  return path.join("/tmp", `hp-${randomSuffix}.sock`);
+    const dir = "/tmp/hardpoint";
+    fs.mkdirSync(dir, { mode: 0o700, recursive: true });
+    const randomSuffix = crypto.randomBytes(8).toString("hex");
+    return path.join(dir, `${randomSuffix}.sock`);
 }
 
-class UnixSocketHandle implements UnixSocket {
-  private readonly socketPath: string;
+class UnixSocketHandleImpl implements UnixSocketHandle {
+  public readonly path: string;
   private readonly server: net.Server;
-  private readonly tunnelSocket: net.Socket;
   private readonly inputStream: stream.PassThrough;
   private readonly outputStream: stream.PassThrough;
   private disposed = false;
 
   constructor(tunnelSocket: net.Socket, socketPath: string) {
-    this.socketPath = socketPath;
-    this.tunnelSocket = tunnelSocket;
+    this.path = socketPath;
     this.inputStream = new stream.PassThrough();
     this.outputStream = new stream.PassThrough();
+
+    tunnelSocket.on("data", (chunk) => {
+      this.inputStream.write(chunk);
+    });
+
+    tunnelSocket.on("close", () => {
+      this.inputStream.end();
+    });
+
+    tunnelSocket.on("error", (err) => {
+      this.inputStream.end(err);
+    });
+
+    this.outputStream.pipe(tunnelSocket);
 
     this.server = net.createServer((clientSocket) => {
       clientSocket.pipe(this.outputStream);
@@ -139,10 +191,6 @@ class UnixSocketHandle implements UnixSocket {
     });
   }
 
-  get socketName(): string {
-    return this.socketPath;
-  }
-
   async [Symbol.asyncDispose](): Promise<void> {
     await this.dispose();
   }
@@ -155,51 +203,66 @@ class UnixSocketHandle implements UnixSocket {
       }
       this.disposed = true;
 
-      this.server.close(() => {
-        this.tunnelSocket.destroy();
-        this.inputStream.end();
-        this.outputStream.end();
+      this.inputStream.end();
+      this.outputStream.end();
 
-        fs.unlink(this.socketPath, () => {
+      this.server.close((_err) => {
+        fs.unlink(this.path, () => {
           resolve();
         });
       });
     });
   }
 
-  listen(): void {
-    this.server.listen(this.socketPath);
+  listen(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Failed to start unix socket listener"));
+      }, 5000);
+
+      this.server.listen(this.path, () => {
+        clearTimeout(timeout);
+        console.log(`Listening on ${this.path}`)
+        resolve();
+      });
+
+      this.server.on("error", (err) => {
+        clearTimeout(timeout);
+        console.log(`Error in UNIX socket listener: ${err}`)
+        reject(err);
+      });
+    });
   }
 }
 
 export interface SdkOptions {
   token?: string;
   relayHost?: string;
+  relayPort?: number;
 }
 
 export interface ConnectOptions {
   service: string;
 }
 
-export interface UnixSocket extends AsyncDisposable {
-  readonly socketName: string;
+export interface TcpSocketHandle extends AsyncDisposable {
+  readonly connection: stream.Duplex;
+}
+
+export interface UnixSocketHandle extends AsyncDisposable {
+  readonly path: string;
 }
 
 export class Sdk {
-  private static instance: Sdk;
-  private token: string | undefined;
-  private relayHost: string;
 
-  private constructor(options?: SdkOptions) {
+  private readonly token: string | undefined;
+  private readonly relayHost: string;
+  private readonly relayPort: number;
+
+  public constructor(options?: SdkOptions) {
     this.token = options?.token ?? getOidcToken();
     this.relayHost = options?.relayHost ?? RELAY_HOST;
-  }
-
-  static getInstance(options?: SdkOptions): Sdk {
-    if (!Sdk.instance) {
-      Sdk.instance = new Sdk(options);
-    }
-    return Sdk.instance;
+    this.relayPort = options?.relayPort ?? RELAY_PORT;
   }
 
   private async getTunnelSocket(options: ConnectOptions): Promise<net.Socket> {
@@ -211,20 +274,21 @@ export class Sdk {
 
     return connectTunnel({
       relayHost: this.relayHost,
+      relayPort: this.relayPort,
       token: this.token,
       service: options.service,
     });
   }
 
-  async connect(options: ConnectOptions): Promise<stream.Duplex> {
+  async connect(options: ConnectOptions): Promise<TcpSocketHandle> {
     return this.getTunnelSocket(options).then((sock) => socketToDuplex(sock));
   }
 
-  async connectAndListen(options: ConnectOptions): Promise<UnixSocket> {
+  async connectAndListen(options: ConnectOptions): Promise<UnixSocketHandle> {
     const tunnelSocket = await this.getTunnelSocket(options);
     const socketPath = generateSocketName();
-    const handle = new UnixSocketHandle(tunnelSocket, socketPath);
-    handle.listen();
+    const handle = new UnixSocketHandleImpl(tunnelSocket, socketPath);
+    await handle.listen();
     return handle;
   }
 }
