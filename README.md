@@ -1,8 +1,5 @@
-# Hardpoint Connect SDK
+SDK
 
-![NPM Last Update](https://img.shields.io/npm/last-update/%40hardpointlabs%2Fsdk)
+---
 
-
-This repo contains the SDK package to drop into your Vercel project.
-
-We keep the main documentation [here](https://docs.hardpoint.dev/hardpoint-connect/getting-started/install-the-sdk).
+Note! This is early alpha and docs are a little thin right now. Reach out directly on [discord](https://discord.gg/WWE4PWVnb2) or [X](https://x.com/h7tlabs) if you need help and we'll respond!
