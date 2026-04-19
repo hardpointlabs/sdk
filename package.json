@@ -22,12 +22,12 @@
     "test": "echo \"Error: no test specified\" && exit 0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.12.2",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
     "eslint": "^8.57.1",
     "eslint-plugin-tsdoc": "^0.5.2",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "dependencies": {
     "@hardpointlabs/length-prefixed-stream": "^2.0.5"
@@ -36,7 +36,7 @@
     "url": "https://github.com/hardpointlabs/sdk/issues"
   },
   "homepage": "https://github.com/hardpointlabs/sdk",
-    "release": {
+  "release": {
     "branches": [
       "master"
     ]
