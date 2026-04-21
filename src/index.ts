@@ -6,12 +6,12 @@ import * as stream from "node:stream";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as lpstream from "@hardpointlabs/length-prefixed-stream";
+import { createMlKem768 } from "mlkem";
 
-const H7T_CLIENT_PUBKEY_HEADER = "H7T-Client-PubKey";
 const H7T_PEER_PUBKEY_HEADER = "H7T-Peer-PubKey";
 const H7T_ORG_HEADER = "H7T-Org";
 
-const ECDH_CURVE = "prime256v1";
+const CIPHER_ALGO = "aes-256-gcm";
 
 const RELAY_HOST = "relay.hardpoint.dev";
 const RELAY_PORT = 443;
@@ -23,32 +23,43 @@ function getOidcToken(): string | undefined {
   return process.env.VERCEL_OIDC_TOKEN;
 }
 
-function createEncryptionTransforms(sharedSecret: Buffer): { encrypt: stream.Transform; decrypt: stream.Transform } {
-  const key = crypto.createHash("sha256").update(sharedSecret).digest();
+function createEncryptionTransforms(key: Buffer, ciphertext: Uint8Array): { encrypt: stream.Transform; decrypt: stream.Transform } {
   const ivLength = 12;
   const authTagLength = 16;
 
   const encrypt = new stream.Transform({
+    construct(callback) {
+      console.log("Sending ciphertext");
+      this.push(ciphertext);
+      callback();
+    },
     transform(chunk: Buffer, _encoding, callback) {
       const iv = crypto.randomBytes(ivLength);
-      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+      const cipher = crypto.createCipheriv(CIPHER_ALGO, key, iv);
+      cipher.setAAD(Buffer.alloc(0));
       const encrypted = Buffer.concat([cipher.update(chunk), cipher.final()]);
       const authTag = cipher.getAuthTag();
 
       // TODO - avoid copy here
-      const result = Buffer.concat([iv, authTag, encrypted]);
+      const result = Buffer.concat([iv, encrypted, authTag]);
+
+      console.log("iv", crypto.createHash("sha256").update(iv).digest("hex"));
+      console.log("tag", crypto.createHash("sha256").update(authTag).digest("hex"));
+      console.log("ciphertext", crypto.createHash("sha256").update(Buffer.concat([encrypted, authTag])).digest("hex"));
+
       callback(null, result);
     },
   });
 
   const decrypt = new stream.Transform({
     transform(chunk: Buffer, _encoding, callback) {
+      console.log("Got response %d bytes encrypted payload", chunk.length);
       try {
         const iv = chunk.subarray(0, ivLength);
         const authTag = chunk.subarray(ivLength, ivLength + authTagLength);
         const encrypted = chunk.subarray(ivLength + authTagLength);
 
-        const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+        const decipher = crypto.createDecipheriv(CIPHER_ALGO, key, iv);
         decipher.setAuthTag(authTag);
 
         // TODO - also avoid copy here
@@ -63,21 +74,21 @@ function createEncryptionTransforms(sharedSecret: Buffer): { encrypt: stream.Tra
   return { encrypt, decrypt };
 }
 
-function connectTunnel({
+async function connectTunnel({
   org_id,
   relayHost,
   relayPort = RELAY_PORT,
   token,
   service,
-  keyPair,
 }: {
   org_id: string;
   relayHost: string;
   relayPort?: number;
   token: string;
   service: string;
-  keyPair: crypto.ECDH;
 }): Promise<stream.Duplex> {
+  const sender = await createMlKem768();
+
   const rejectUnauthorized = relayHost === "localhost" ? false : true;
 
   return new Promise((resolve, reject) => {
@@ -93,12 +104,10 @@ function connectTunnel({
     );
 
     socket.on("secureConnect", () => {
-      const encodedPublicKey = keyPair.getPublicKey().toString("base64");
       const connectRequest = [
         `CONNECT ${service} HTTP/1.1`,
         `Host: ${service}`,
         `Authorization: Bearer ${token}`,
-        `${H7T_CLIENT_PUBKEY_HEADER}: ${encodedPublicKey}`,
         `${H7T_ORG_HEADER}: ${org_id}`,
         "",
         "",
@@ -131,13 +140,24 @@ function connectTunnel({
 
         const peerPublicKey = Buffer.from(peerPubKeyMatch[1].trim(), "base64");
 
+        const [ciphertext, sharedSecret] = sender.encap(peerPublicKey);
+        const key = crypto.hkdfSync("sha256",
+          Buffer.from(sharedSecret),
+          Buffer.alloc(0),                    // salt (see note below)
+          Buffer.alloc(0),   // context separation
+          32)
+
+        const kb = Buffer.from(key); // derived
+        console.log("shared secret:", crypto.createHash("sha256").update(sharedSecret).digest("hex"))
+        console.log("key from shared secret:", kb.toString("hex"));
+
         socket.removeAllListeners("data");
 
         if (rest?.length) {
           socket.unshift(Buffer.from(rest));
         }
 
-        const encryptedSocket = wrapSocketWithEncryption(socket, keyPair, peerPublicKey);
+        const encryptedSocket = wrapSocketWithEncryption(socket, key, ciphertext);
         resolve(encryptedSocket);
       }
     });
@@ -146,45 +166,22 @@ function connectTunnel({
   });
 }
 
-function wrapSocketWithEncryption(socket: net.Socket, keyPair: crypto.ECDH, peerPublicKey: Buffer): stream.Duplex {
-  const sharedSecret = keyPair.computeSecret(peerPublicKey);
+function wrapSocketWithEncryption(socket: net.Socket, hkdfKey: ArrayBuffer, ciphertext: Uint8Array): stream.Duplex {
+  const key = Buffer.from(hkdfKey); // derived
+  console.log("key:", key.toString("hex"));
 
-  const { encrypt, decrypt } = createEncryptionTransforms(sharedSecret);
+  const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(key, ciphertext);
 
-  const encoder = new lpstream.Encoder();
-  const decoder = new lpstream.Decoder();
+  const encoder: stream.Transform = new lpstream.Encoder();
+  const decoder: stream.Transform = new lpstream.Decoder();
 
   encrypt.pipe(encoder).pipe(socket);
   socket.pipe(decoder).pipe(decrypt);
 
-  const wrapper = new stream.Duplex({
-    read() {},
-    write(chunk, encoding, callback) {
-      encrypt.write(chunk, encoding, callback);
-    },
-    final(callback) {
-      encrypt.end();
-      callback();
-    },
-    destroy(error, callback) {
-      socket.destroy(error ?? undefined);
-      callback(error ?? undefined);
-    },
+  return stream.Duplex.from({
+    readable: decrypt,
+    writable: encrypt
   });
-
-  decrypt.on("data", (chunk) => {
-    wrapper.push(chunk);
-  });
-
-  decrypt.on("end", () => {
-    wrapper.push(null);
-  });
-
-  decrypt.on("error", (err) => {
-    wrapper.destroy(err);
-  });
-
-  return wrapper;
 }
 
 class TcpSocketHandleImpl implements TcpSocketHandle {
@@ -317,20 +314,12 @@ export class Sdk {
   private readonly token: string | undefined;
   private readonly relayHost: string;
   private readonly relayPort: number;
-  private readonly keyPair: crypto.ECDH;
 
   public constructor(options: SdkOptions) {
     this.org_id = options.org_id;
     this.token = options.token ?? getOidcToken();
     this.relayHost = options.relayHost ?? RELAY_HOST;
     this.relayPort = options.relayPort ?? RELAY_PORT;
-
-    this.keyPair = crypto.createECDH(ECDH_CURVE);
-    this.keyPair.generateKeys();
-  }
-
-  getPublicKey(): Buffer {
-    return this.keyPair.getPublicKey();
   }
 
   async connect(options: ConnectOptions): Promise<TcpSocketHandle> {
@@ -346,7 +335,6 @@ export class Sdk {
       relayPort: this.relayPort,
       token: this.token,
       service: options.service,
-      keyPair: this.keyPair,
     });
 
     return socketToHandle(socket);
@@ -365,7 +353,6 @@ export class Sdk {
       relayPort: this.relayPort,
       token: this.token,
       service: options.service,
-      keyPair: this.keyPair,
     });
 
     const socketPath = generateSocketName();

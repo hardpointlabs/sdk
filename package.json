@@ -30,7 +30,8 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@hardpointlabs/length-prefixed-stream": "^2.0.5"
+    "@hardpointlabs/length-prefixed-stream": "^2.0.6",
+    "mlkem": "^2.7.0"
   },
   "bugs": {
     "url": "https://github.com/hardpointlabs/sdk/issues"
