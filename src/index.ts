@@ -103,6 +103,7 @@ async function connectTunnel({
         servername: relayHost,
         ca: CA_CERT,
         rejectUnauthorized: rejectUnauthorized,
+        minVersion: "TLSv1.3"
       },
       () => {}
     );
