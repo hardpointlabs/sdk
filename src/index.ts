@@ -56,8 +56,12 @@ function createEncryptionTransforms(key: Buffer, ciphertext: Uint8Array): { encr
       console.log("Got response %d bytes encrypted payload", chunk.length);
       try {
         const iv = chunk.subarray(0, ivLength);
-        const authTag = chunk.subarray(ivLength, ivLength + authTagLength);
-        const encrypted = chunk.subarray(ivLength + authTagLength);
+        const authTag = chunk.subarray(chunk.length - authTagLength, chunk.length);
+        const encrypted = chunk.subarray(ivLength, chunk.length - authTagLength);
+
+        console.log("iv", crypto.createHash("sha256").update(iv).digest("hex"));
+        console.log("tag", crypto.createHash("sha256").update(authTag).digest("hex"));
+        console.log("ciphertext", crypto.createHash("sha256").update(Buffer.concat([encrypted, authTag])).digest("hex"));
 
         const decipher = crypto.createDecipheriv(CIPHER_ALGO, key, iv);
         decipher.setAuthTag(authTag);
