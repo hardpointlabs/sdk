@@ -189,44 +189,98 @@ function wrapSocketWithEncryption(socket: net.Socket, hkdfKey: ArrayBuffer, ciph
   });
 }
 
-class TcpSocketHandleImpl implements TcpSocketHandle {
-  public readonly connection: stream.Duplex;
+function streamToSocketLike(rawSocket: stream.Duplex): TcpSocketLike {
+  const sockLike = rawSocket as TcpSocketLike;
 
-  constructor(connection: stream.Duplex) {
-    this.connection = connection;
-  }
+  sockLike.remoteHost = "TODO";
+  sockLike.remotePort = -1;
+  sockLike.serviceName = "TODO";
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.dispose();
-  }
+  const dispose = () => new Promise<void>((resolve) => {
+    const cleanup = () => {
+      sockLike.removeAllListeners();
+      resolve();
+    };
 
-  private async dispose(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const connection = this.connection;
+    const forceClose = () => {
+      cleanup();
+    };
 
-      const cleanup = () => {
-        connection.removeAllListeners();
-        resolve();
-      };
+    const timeoutId = setTimeout(forceClose, 2000);
 
-      const forceClose = () => {
-        cleanup();
-      };
-
-      const timeoutId = setTimeout(forceClose, 2000);
-
-      connection.on("close", () => {
-        clearTimeout(timeoutId);
-        cleanup();
-      });
-
-      connection.end();
+    sockLike.on("close", () => {
+      clearTimeout(timeoutId);
+      cleanup();
     });
-  }
+
+    sockLike.end();
+  });
+
+  sockLike[Symbol.asyncDispose] = dispose;
+
+  sockLike.httpTransport = () => asHttpSocket(sockLike);
+
+  return sockLike;
 }
 
-function socketToHandle(rawSocket: stream.Duplex): TcpSocketHandle {
-  return new TcpSocketHandleImpl(rawSocket);
+function socketLikeToUnixLike(duplex: stream.Duplex): ListeningUnixSocket {
+  const sockLike = {} as ListeningUnixSocket;
+
+  sockLike.remoteHost = "TODO";
+  sockLike.remotePort = -1;
+  sockLike.serviceName = "TODO";
+
+  sockLike.path = generateSocketName();
+
+  const server = net.createServer((clientSocket) => {
+    clientSocket.pipe(duplex);
+    duplex.pipe(clientSocket);
+
+    clientSocket.on("error", (_err) => {
+      duplex.end();
+    });
+  });
+
+  sockLike.listen = () => new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Failed to start unix socket listener"));
+    }, 5000);
+
+    server.listen(sockLike.path, () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+
+    server.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+
+  let disposed = false;
+
+  const dispose = () => new Promise<void>((resolve, reject) => {
+    if (disposed) {
+      resolve();
+      return;
+    }
+    disposed = true;
+
+    duplex.end();
+    server.close((_err) => {
+      fs.unlink(sockLike.path, () => {
+        if (_err) {
+          reject(_err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  });
+
+  sockLike[Symbol.asyncDispose] = dispose;
+
+  return sockLike;
 }
 
 function generateSocketName(): string {
@@ -236,82 +290,67 @@ function generateSocketName(): string {
   return path.join(dir, `${randomSuffix}.sock`);
 }
 
-class UnixSocketHandleImpl implements UnixSocketHandle {
-  public readonly path: string;
-  private readonly remote: stream.Duplex;
-  private readonly server!: net.Server;
-  private disposed = false;
-
-  constructor(socketPath: string, remoteSocket: stream.Duplex) {
-    this.path = socketPath;
-    this.remote = remoteSocket;
-    this.server = net.createServer((clientSocket) => {
-      clientSocket.pipe(remoteSocket);
-      remoteSocket.pipe(clientSocket);
-
-      clientSocket.on("error", (_err) => {
-        remoteSocket.end();
-      });
-    });
-  }
-
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.dispose();
-  }
-
-  private async dispose(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      if (this.disposed) {
-        resolve();
-        return;
-      }
-      this.disposed = true;
-
-      this.remote.end();
-      this.server.close((_err) => {
-        fs.unlink(this.path, () => {
-          resolve();
-        });
-      });
-    });
-  }
-
-  listen(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Failed to start unix socket listener"));
-      }, 5000);
-
-      this.server.listen(this.path, () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-
-      this.server.on("error", (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-    });
-  }
-}
-
-export interface SdkOptions {
+export type SdkOptions = {
   org_id: string;
   token?: string;
   relayHost?: string;
   relayPort?: number;
 }
 
-export interface ConnectOptions {
+export type ConnectOptions = {
   service: string;
 }
 
-export interface TcpSocketHandle extends AsyncDisposable {
-  readonly connection: stream.Duplex;
+type EncryptionScheme = "ML-KEM" | undefined;
+
+export type Tunnel = {
+  serviceName: string;
+  remoteHost: string;
+  remotePort: number;
+  encryptionScheme: EncryptionScheme;
 }
 
-export interface UnixSocketHandle extends AsyncDisposable {
-  readonly path: string;
+export type TcpSocketLike = Tunnel & AsyncDisposable & stream.Duplex & {
+  httpTransport: () => HttpSocketLike
+}
+
+export type UnixSocketLike = Tunnel & AsyncDisposable & {
+  path: string;
+}
+
+type ListeningUnixSocket = UnixSocketLike & {
+  listen: () => Promise<void>;
+}
+
+export type HttpSocketLike = stream.Duplex & {
+  setTimeout: (timeout?: number, callback?: () => void) => any;
+  setNoDelay: (noDelay?: boolean) => any;
+  setKeepAlive: (enable?: boolean, initialDelay?: number) => any;
+  ref: () => any;
+  unref: () => any;
+  destroy: (error?: Error) => any;
+}
+
+function asHttpSocket(duplex: stream.Duplex): HttpSocketLike {
+  const socket = duplex as HttpSocketLike;
+
+  socket.setTimeout ??= () => socket;
+  socket.setNoDelay ??= () => socket;
+  socket.setKeepAlive ??= () => socket;
+  socket.ref ??= () => socket;
+  socket.unref ??= () => socket;
+
+  // ensure destroy exists (usually does, but TS wants it explicit)
+  socket.destroy ??= ((err?: Error) => {
+    duplex.destroy(err);
+    return socket;
+  });
+
+  process.nextTick(() => {
+    socket.emit('connect');
+  });
+
+  return socket;
 }
 
 export class Sdk {
@@ -327,7 +366,7 @@ export class Sdk {
     this.relayPort = options.relayPort ?? RELAY_PORT;
   }
 
-  async connect(options: ConnectOptions): Promise<TcpSocketHandle> {
+  public async connect(options: ConnectOptions): Promise<TcpSocketLike> {
     if (!this.token) {
       throw new Error(
         "OIDC token not found. Set VERCEL_OIDC_TOKEN environment variable or pass token in getInstance()."
@@ -342,10 +381,10 @@ export class Sdk {
       service: options.service,
     });
 
-    return socketToHandle(socket);
+    return streamToSocketLike(socket);
   }
 
-  async connectAndListen(options: ConnectOptions): Promise<UnixSocketHandle> {
+  public async connectAndListen(options: ConnectOptions): Promise<UnixSocketLike> {
     if (!this.token) {
       throw new Error(
         "OIDC token not found. Set VERCEL_OIDC_TOKEN environment variable or pass token in getInstance()."
@@ -360,8 +399,7 @@ export class Sdk {
       service: options.service,
     });
 
-    const socketPath = generateSocketName();
-    const handle = new UnixSocketHandleImpl(socketPath, remoteSocket);
+    const handle = socketLikeToUnixLike(remoteSocket)
     await handle.listen();
     return handle;
   }
