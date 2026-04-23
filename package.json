@@ -18,6 +18,7 @@
   },
   "scripts": {
     "build": "npx tsc && cp ./lib/ca.crt ./dist/ && npx typedoc --out ./dist/docs",
+    "docs": "npx typedoc --out ./dist/docs",
     "lint": "eslint src/",
     "test": "echo \"Error: no test specified\" && exit 0"
   },
