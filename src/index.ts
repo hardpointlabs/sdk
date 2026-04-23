@@ -325,7 +325,7 @@ export interface Tunnel {
  *
  * Although this behaves as a reliable ordered stream of bytes, you should treat this this as a generic
  * `stream.Duplex` since it abstracts the underlying complexity of the tunnel without making
- * assumptions about what Layer 4 transport.
+ * assumptions about what Layer 4 transport is being used.
  * 
  * Where a concrete `net.Socket` is required, the {@link StreamLike.asSocket} method is available.
  *

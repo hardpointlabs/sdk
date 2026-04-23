@@ -4,5 +4,11 @@
   "compatibility_date": "2026-04-23",
   "assets": {
     "directory": "./dist/docs"
-  }
+  },
+  "routes": [
+    {
+      "zone_name": "hardpoint.dev",
+      "pattern": "sdk.hardpoint.dev"
+    }
+  ]
 }
