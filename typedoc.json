@@ -1,0 +1,17 @@
+{
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "validation": {
+    "notExported": false
+  },
+  "entryPoints": ["./src/index.ts", "./src/logging.ts"],
+  "externalSymbolLinkMappings": {
+    "@types/node": {
+      "Stream.Writable.write": "#",
+      "Stream.Writable.end": "#",
+      "EventEmitter.defaultMaxListeners": "#",
+      "\"net\".Socket.write": "#",
+      "\"net\".Socket.end": "#"
+    }
+  }
+}

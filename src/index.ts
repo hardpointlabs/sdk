@@ -7,6 +7,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as lpstream from "@hardpointlabs/length-prefixed-stream";
 import { createMlKem768 } from "mlkem";
+import { Logger, noopLogger } from "./logging.js";
 
 const H7T_PEER_PUBKEY_HEADER = "H7T-Peer-PubKey";
 const H7T_ORG_HEADER = "H7T-Org";
@@ -19,11 +20,7 @@ const RELAY_PORT = 443;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CA_CERT = fs.readFileSync(path.join(__dirname, "ca.crt"));
 
-function getOidcToken(): string | undefined {
-  return process.env.VERCEL_OIDC_TOKEN;
-}
-
-function createEncryptionTransforms(key: Buffer, ciphertext: Uint8Array): { encrypt: stream.Transform; decrypt: stream.Transform } {
+function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uint8Array): { encrypt: stream.Transform; decrypt: stream.Transform } {
   const ivLength = 12;
   const authTagLength = 16;
 
@@ -79,12 +76,14 @@ function createEncryptionTransforms(key: Buffer, ciphertext: Uint8Array): { encr
 }
 
 async function connectTunnel({
+  logger,
   org_id,
   relayHost,
   relayPort = RELAY_PORT,
   token,
   service,
 }: {
+  logger: Logger;
   org_id: string;
   relayHost: string;
   relayPort?: number;
@@ -162,7 +161,7 @@ async function connectTunnel({
           socket.unshift(Buffer.from(rest));
         }
 
-        const encryptedSocket = wrapSocketWithEncryption(socket, key, ciphertext);
+        const encryptedSocket = wrapSocketWithEncryption(logger, socket, key, ciphertext);
         resolve(encryptedSocket);
       }
     });
@@ -171,11 +170,11 @@ async function connectTunnel({
   });
 }
 
-function wrapSocketWithEncryption(socket: net.Socket, hkdfKey: ArrayBuffer, ciphertext: Uint8Array): stream.Duplex {
+function wrapSocketWithEncryption(logger: Logger, socket: net.Socket, hkdfKey: ArrayBuffer, ciphertext: Uint8Array): stream.Duplex {
   const key = Buffer.from(hkdfKey); // derived
   console.log("key:", key.toString("hex"));
 
-  const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(key, ciphertext);
+  const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(logger, key, ciphertext);
 
   const encoder: stream.Transform = new lpstream.Encoder();
   const decoder: stream.Transform = new lpstream.Decoder();
@@ -189,36 +188,14 @@ function wrapSocketWithEncryption(socket: net.Socket, hkdfKey: ArrayBuffer, ciph
   });
 }
 
-function streamToSocketLike(rawSocket: stream.Duplex): TcpSocketLike {
-  const sockLike = rawSocket as TcpSocketLike;
+function streamToSocketLike(rawSocket: stream.Duplex): StreamLike {
+  const sockLike = rawSocket as StreamLike;
 
   sockLike.remoteHost = "TODO";
   sockLike.remotePort = -1;
   sockLike.serviceName = "TODO";
 
-  const dispose = () => new Promise<void>((resolve) => {
-    const cleanup = () => {
-      sockLike.removeAllListeners();
-      resolve();
-    };
-
-    const forceClose = () => {
-      cleanup();
-    };
-
-    const timeoutId = setTimeout(forceClose, 2000);
-
-    sockLike.on("close", () => {
-      clearTimeout(timeoutId);
-      cleanup();
-    });
-
-    sockLike.end();
-  });
-
-  sockLike[Symbol.asyncDispose] = dispose;
-
-  sockLike.httpTransport = () => asHttpSocket(sockLike);
+  sockLike.asSocket = () => asSocket(sockLike);
 
   return sockLike;
 }
@@ -291,11 +268,16 @@ function generateSocketName(): string {
 }
 
 export type SdkOptions = {
-  org_id: string;
+  org_id?: string;
   token?: string;
   relayHost?: string;
   relayPort?: number;
+  logger: Logger;
 }
+
+export type SdkOptionsInput = Partial<Omit<SdkOptions, "logger">> & {
+  logger?: Logger;
+};
 
 export type ConnectOptions = {
   service: string;
@@ -303,18 +285,89 @@ export type ConnectOptions = {
 
 type EncryptionScheme = "ML-KEM" | undefined;
 
-export type Tunnel = {
+/**
+ * Base type for connections to remote services established over a secure tunnel via the Hardpoint network.
+ *
+ * All tunnel types contain some common information that may be helpful, depending on the use case.
+ */
+export interface Tunnel {
+  /**
+   * Name of the service.
+   * 
+   * This corresponds with the name of a service(s) in the Hardpoint Dashboard. See the [documentation on services](https://docs.hardpoint.dev/hardpoint-connect/getting-started/add-services) for more information.
+   */
   serviceName: string;
+  /**
+   * The host that we're connected to on the other side of the network.
+   * 
+   * This could be any IPv4 address, IPv6 address or valid hostname.
+   * 
+   * This can be necessary for several use-cases, such as:
+   * 
+   * * To perform SNI properly with a TLS-enabled service, or;
+   * * To pass the correct host header to an HTTP server that validates them
+   */
   remoteHost: string;
+  /**
+   * The resolved port that we're connected to on the other side of the network.
+   *
+   * This could be any valid port number.
+   */
   remotePort: number;
+  /**
+   * The encryption scheme the tunnel is using.
+   */
   encryptionScheme: EncryptionScheme;
 }
 
-export type TcpSocketLike = Tunnel & AsyncDisposable & stream.Duplex & {
-  httpTransport: () => HttpSocketLike
+/**
+ * A bidirectional network stream to a service.
+ *
+ * Although this behaves as a reliable ordered stream of bytes, you should treat this this as a generic
+ * `stream.Duplex` since it abstracts the underlying complexity of the tunnel without making
+ * assumptions about what Layer 4 transport.
+ * 
+ * Where a concrete `net.Socket` is required, the {@link StreamLike.asSocket} method is available.
+ *
+ * This should be disposed of properly when no longer needed.
+ */
+export interface StreamLike extends Tunnel, stream.Duplex {
+  /**
+   * Exposes this tunnel as a socket.
+   *
+   * Use this for cases such as node's own `http` which expects low-level TCP primitive
+   * access. Where possible, the owning {@link StreamLike} instance should be preferred, since
+   * exact TCP semantics cannot be guaranteed.
+   *
+   * @returns reference to the same underlying {@link StreamLike} as a `net.Socket`
+   */
+  asSocket(): SocketLike
 }
 
-export type UnixSocketLike = Tunnel & AsyncDisposable & {
+/**
+ * A handle to a UNIX socket connected to a service.
+ *
+ * Unlike a {@link StreamLike} which can be treated like a regular stream over TCP,
+ * you don't interact with this directly; instead, it exposes a {@link UnixSocketLike.path | path} property
+ * which points to an ephemeral UNIX socket to be used in clients that can't accept a
+ * `stream.Duplex` directly.
+ *
+ * As with {@link StreamLike}, this should be disposed of properly when no longer needed
+ * to clean up associated network resources. See the main {@link Sdk} docs for details. Note that
+ * failing to dispose of this will not just leak the underlying tunnel socket, but it will also leave
+ * the UNIX socket listener open.
+ */
+export interface UnixSocketLike extends Tunnel, AsyncDisposable {
+  /**
+   * Path to the listening UNIX socket.
+   *
+   * Until the owning {@link UnixSocketLike} object is disposed, it should be assumed that
+   * a listener is running at this path and is able to accept connections.
+   *
+   * In most serverless environments, the path is a random but unique location inside `/tmp`,
+   * but no assumptions should be made about where it is created, and callers should treat
+   * this as an opaque string.
+   */
   path: string;
 }
 
@@ -322,17 +375,13 @@ type ListeningUnixSocket = UnixSocketLike & {
   listen: () => Promise<void>;
 }
 
-export type HttpSocketLike = stream.Duplex & {
-  setTimeout: (timeout?: number, callback?: () => void) => any;
-  setNoDelay: (noDelay?: boolean) => any;
-  setKeepAlive: (enable?: boolean, initialDelay?: number) => any;
-  ref: () => any;
-  unref: () => any;
-  destroy: (error?: Error) => any;
-}
+/**
+ * Socket which is set up to 
+ */
+export interface SocketLike extends net.Socket {}
 
-function asHttpSocket(duplex: stream.Duplex): HttpSocketLike {
-  const socket = duplex as HttpSocketLike;
+function asSocket(duplex: stream.Duplex): SocketLike {
+  const socket = duplex as SocketLike;
 
   socket.setTimeout ??= () => socket;
   socket.setNoDelay ??= () => socket;
@@ -353,50 +402,97 @@ function asHttpSocket(duplex: stream.Duplex): HttpSocketLike {
   return socket;
 }
 
+function getOrgId(fromOptions?: string): string | undefined {
+  return fromOptions ?? process.env.HARDPOINT_ORG_ID;
+}
+
+function getToken(fromOptions?: string): string | undefined {
+  return fromOptions ?? process.env.VERCEL_OIDC_TOKEN;
+}
+
+/**
+ * The single touchpoint to the Hardpoint SDK.
+ */
 export class Sdk {
+  private readonly logger: Logger;
   private readonly org_id: string;
-  private readonly token: string | undefined;
+  private readonly token: string;
   private readonly relayHost: string;
   private readonly relayPort: number;
 
-  public constructor(options: SdkOptions) {
-    this.org_id = options.org_id;
-    this.token = options.token ?? getOidcToken();
-    this.relayHost = options.relayHost ?? RELAY_HOST;
-    this.relayPort = options.relayPort ?? RELAY_PORT;
-  }
-
-  public async connect(options: ConnectOptions): Promise<TcpSocketLike> {
-    if (!this.token) {
+  /**
+   * Create a new SDK instance.
+   *
+   * This should only be done once on application startup. See {@link SdkOptions} for configuration options.
+   */
+  public constructor(options: SdkOptionsInput = {}) {
+    const derivedToken = getToken(options.token)
+    if (!derivedToken) {
       throw new Error(
         "OIDC token not found. Set VERCEL_OIDC_TOKEN environment variable or pass token in getInstance()."
       );
     }
+    const derivedOrgId = getOrgId(options.org_id);
+    if (!derivedOrgId) {
+      throw new Error("Missing Org ID! See the docs at https://github.com/hardpointlabs/sdk to learn more");
+    }
 
+    this.logger = options.logger ?? noopLogger;
+    this.org_id = derivedOrgId;
+    this.token = derivedToken;
+    this.relayHost = options.relayHost ?? RELAY_HOST;
+    this.relayPort = options.relayPort ?? RELAY_PORT;
+  }
+
+  /**
+   * Establish a tunnel to a service on your Hardpoint network.
+   *
+   * Locates the service and sets up an encrypted connection.
+   *
+   * @param options name of a Hardpoint service
+   * @returns An encrypted tunnel to the desired service. For the most part you can treat
+   * this like a regular socket and pass it to any client library that takes a stream.
+   *
+   * See the docs for concrete examples with specific client libraries.
+   */
+  public async connect(options: string | ConnectOptions): Promise<StreamLike> {
+    const service = typeof options === "string" ? options : options.service;
     const socket = await connectTunnel({
+      logger: this.logger,
       org_id: this.org_id,
       relayHost: this.relayHost,
       relayPort: this.relayPort,
       token: this.token,
-      service: options.service,
+      service: service,
     });
 
     return streamToSocketLike(socket);
   }
 
+  /**
+   * Establish a tunnel to a service on your Hardpoint network.
+   *
+   * Locates the service and sets up an encrypted connection. In contrast to {@link Sdk.connect},
+   * this also creates a local UNIX socket listening for traffic from client libraries and pipes
+   * data between the tunnel and the UNIX socket.
+   *
+   * This is useful for client libraries that cannot directly accept a `duplex.Stream`-like object.
+   *
+   * @param options name of a Hardpoint service
+   * @returns A handle to the encrypted tunnel and UNIX socket ready to accept traffic. See {@link UnixSocketLike}
+   * for more information.
+   *
+   * See the docs for concrete examples with specific client libraries.
+   */
   public async connectAndListen(options: ConnectOptions): Promise<UnixSocketLike> {
-    if (!this.token) {
-      throw new Error(
-        "OIDC token not found. Set VERCEL_OIDC_TOKEN environment variable or pass token in getInstance()."
-      );
-    }
-
+    const service = typeof options === "string" ? options : options.service;
     const remoteSocket = await connectTunnel({
+      logger: this.logger,
       org_id: this.org_id,
       relayHost: this.relayHost,
       relayPort: this.relayPort,
       token: this.token,
-      service: options.service,
+      service: service,
     });
 
     const handle = socketLikeToUnixLike(remoteSocket)

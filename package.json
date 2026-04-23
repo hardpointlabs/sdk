@@ -17,7 +17,7 @@
     "test": "test"
   },
   "scripts": {
-    "build": "npx tsc && cp ./lib/ca.crt ./dist/",
+    "build": "npx tsc && cp ./lib/ca.crt ./dist/ && npx typedoc --out ./dist/docs",
     "lint": "eslint src/",
     "test": "echo \"Error: no test specified\" && exit 0"
   },
@@ -27,6 +27,7 @@
     "@typescript-eslint/parser": "^8.57.2",
     "eslint": "^8.57.1",
     "eslint-plugin-tsdoc": "^0.5.2",
+    "typedoc": "^0.28.19",
     "typescript": "^6.0.2"
   },
   "dependencies": {
