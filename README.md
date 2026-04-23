@@ -44,3 +44,8 @@ Now you can connect to a service:
 await using tunnel = sdk.connect('postgres.prod')
 // pass {tunnel} to your postgres client
 ```
+
+## Next steps
+
+* See [client-specific examples](https://docs.hardpoint.dev/hardpoint-connect/sdk-integration-examples) in the docs
+* The full SDK API docs are [here](https://sdk.hardpoint.dev)
