@@ -16,7 +16,7 @@ The SDK connects serverless functions to your services. It's compatible with Jav
 
 1. A Hardpoint account and valid Org ID: [Sign up for free](https://dashboard.hardpoint.dev) to get one
 2. A JavaScript/TypeScript project running on Vercel
-3. The an [agent configured](https://docs.hardpoint.dev/hardpoint-connect/getting-started/set-up-the-agent) to expose at least one service
+3. An [agent configured](https://docs.hardpoint.dev/hardpoint-connect/getting-started/set-up-the-agent) to expose at least one service
 
 ## Installation
 
