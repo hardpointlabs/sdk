@@ -410,8 +410,12 @@ function getToken(fromOptions?: string): string | undefined {
   return fromOptions ?? process.env.VERCEL_OIDC_TOKEN;
 }
 
+let _sdk: Sdk | undefined;
+
 /**
  * The single touchpoint to the Hardpoint SDK.
+ *
+ * Use {@link Sdk.init} to create or retrieve the singleton instance.
  */
 export class Sdk {
   private readonly logger: Logger;
@@ -421,11 +425,26 @@ export class Sdk {
   private readonly relayPort: number;
 
   /**
+   * Initialize or retrieve the singleton SDK instance.
+   *
+   * This should only be done once on application startup. See {@link SdkOptions} for configuration options.
+   *
+   * @param options SDK configuration options
+   * @returns The singleton SDK instance
+   */
+  public static init(options: SdkOptionsInput = {}): Sdk {
+    if (!_sdk) {
+      _sdk = new Sdk(options);
+    }
+    return _sdk;
+  }
+
+  /**
    * Create a new SDK instance.
    *
    * This should only be done once on application startup. See {@link SdkOptions} for configuration options.
    */
-  public constructor(options: SdkOptionsInput = {}) {
+  private constructor(options: SdkOptionsInput = {}) {
     const derivedToken = getToken(options.token)
     if (!derivedToken) {
       throw new Error(
