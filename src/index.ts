@@ -341,7 +341,7 @@ export interface StreamLike extends Tunnel, stream.Duplex {
    *
    * @returns reference to the same underlying {@link StreamLike} as a `net.Socket`
    */
-  asSocket(): SocketLike
+  asSocket(): net.Socket
 }
 
 /**
@@ -375,13 +375,8 @@ type ListeningUnixSocket = UnixSocketLike & {
   listen: () => Promise<void>;
 }
 
-/**
- * Socket which is set up to 
- */
-export interface SocketLike extends net.Socket {}
-
-function asSocket(duplex: stream.Duplex): SocketLike {
-  const socket = duplex as SocketLike;
+function asSocket(duplex: stream.Duplex): net.Socket {
+  const socket = duplex as net.Socket;
 
   socket.setTimeout ??= () => socket;
   socket.setNoDelay ??= () => socket;
