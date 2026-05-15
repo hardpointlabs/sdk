@@ -33,4 +33,4 @@ This repo contains the Hardpoint SDK, an ES module which is designed to be integ
 ## Workflow
 
 1. Run `npm run build`, ensure this is working
-2. The most common possible failures of the build are TypeScript compilation errors, or quality degredations in FTA. Refactor any changes as necessary (without altering the public API surface), and re-run the build step until the quality arrives at an `OK` value.
+2. The most common possible failures of the build are TypeScript compilation errors, or quality degredations in FTA. Refactor any changes as necessary (without altering the public API surface), and re-run the build step until the quality arrives at an `OK` value. You can see more specifics regarding static analyzer metrics for each file by running `npx fta-cli . --json` from the project root.
