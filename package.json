@@ -1,6 +1,6 @@
 {
   "name": "@hardpointlabs/sdk",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Hardpoint SDK",
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
     "hardpoint": "./dist/cli.js"
   },
   "directories": {
+    "bin": "bin",
     "src": "src",
     "dist": "dist",
     "test": "test"

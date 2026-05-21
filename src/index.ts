@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as lpstream from "@hardpointlabs/length-prefixed-stream";
 import { createMlKem768 } from "mlkem";
 import { Logger, noopLogger } from "./logging.js";
+import { chainedTokenProvider, RequestContext, TokenProvider } from "./auth.js";
 
 const H7T_PEER_PUBKEY_HEADER = "H7T-Peer-PubKey";
 const H7T_ORG_HEADER = "H7T-Org";
@@ -19,6 +20,14 @@ const RELAY_PORT = 443;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CA_CERT = fs.readFileSync(path.join(__dirname, "ca.crt"));
+
+function logCipherDetails(logger: Logger, iv: Buffer, authTag: Buffer, finalChunk: Buffer) {
+  logger.debug({
+    "iv": crypto.createHash("sha256").update(iv).digest("hex"),
+    "tag": crypto.createHash("sha256").update(authTag).digest("hex"),
+    "ciphertext": crypto.createHash("sha256").update(Buffer.concat([finalChunk, authTag])).digest("hex")
+  });
+}
 
 function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uint8Array): { encrypt: stream.Transform; decrypt: stream.Transform } {
   const ivLength = 12;
@@ -40,9 +49,7 @@ function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uin
       // TODO - avoid copy here
       const result = Buffer.concat([iv, encrypted, authTag]);
 
-      console.log("iv", crypto.createHash("sha256").update(iv).digest("hex"));
-      console.log("tag", crypto.createHash("sha256").update(authTag).digest("hex"));
-      console.log("ciphertext", crypto.createHash("sha256").update(Buffer.concat([encrypted, authTag])).digest("hex"));
+      logCipherDetails(logger, iv, authTag, encrypted);
 
       callback(null, result);
     },
@@ -50,15 +57,13 @@ function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uin
 
   const decrypt = new stream.Transform({
     transform(chunk: Buffer, _encoding, callback) {
-      console.log("Got response %d bytes encrypted payload", chunk.length);
+      logger.debug(`Got response %d bytes encrypted payload ${chunk.length}`);
       try {
         const iv = chunk.subarray(0, ivLength);
         const authTag = chunk.subarray(chunk.length - authTagLength, chunk.length);
         const encrypted = chunk.subarray(ivLength, chunk.length - authTagLength);
 
-        console.log("iv", crypto.createHash("sha256").update(iv).digest("hex"));
-        console.log("tag", crypto.createHash("sha256").update(authTag).digest("hex"));
-        console.log("ciphertext", crypto.createHash("sha256").update(Buffer.concat([encrypted, authTag])).digest("hex"));
+        logCipherDetails(logger, iv, authTag, encrypted);
 
         const decipher = crypto.createDecipheriv(CIPHER_ALGO, key, iv);
         decipher.setAuthTag(authTag);
@@ -77,14 +82,14 @@ function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uin
 
 async function connectTunnel({
   logger,
-  org_id,
+  orgId,
   relayHost,
   relayPort = RELAY_PORT,
   token,
   service,
 }: {
   logger: Logger;
-  org_id: string;
+  orgId: string;
   relayHost: string;
   relayPort?: number;
   token: string;
@@ -92,7 +97,8 @@ async function connectTunnel({
 }): Promise<stream.Duplex> {
   const sender = await createMlKem768();
 
-  const rejectUnauthorized = relayHost === "localhost" ? false : true;
+  // ignore TLS warnings for local dev
+  const rejectUnauthorizedCerts = relayHost === "localhost" ? false : true;
 
   return new Promise((resolve, reject) => {
     const socket = tls.connect(
@@ -101,7 +107,7 @@ async function connectTunnel({
       {
         servername: relayHost,
         ca: CA_CERT,
-        rejectUnauthorized: rejectUnauthorized,
+        rejectUnauthorized: rejectUnauthorizedCerts,
         minVersion: "TLSv1.3"
       },
       () => {}
@@ -112,7 +118,7 @@ async function connectTunnel({
         `CONNECT ${service} HTTP/1.1`,
         `Host: ${service}`,
         `Authorization: Bearer ${token}`,
-        `${H7T_ORG_HEADER}: ${org_id}`,
+        `${H7T_ORG_HEADER}: ${orgId}`,
         "",
         "",
       ].join("\r\n");
@@ -125,7 +131,7 @@ async function connectTunnel({
     socket.on("data", (chunk) => {
       buffer += chunk.toString("utf8");
       if (buffer.includes("\r\n\r\n")) {
-        if (!buffer.startsWith("HTTP/1.1 200") && !buffer.startsWith("HTTP/1.0 200")) {
+        if (!buffer.startsWith("HTTP/1.1 200")) {
           reject(new Error(`Tunnel failed: ${buffer.split("\r\n")[0]}`));
           socket.destroy();
           return;
@@ -147,13 +153,13 @@ async function connectTunnel({
         const [ciphertext, sharedSecret] = sender.encap(peerPublicKey);
         const key = crypto.hkdfSync("sha256",
           Buffer.from(sharedSecret),
-          Buffer.alloc(0),                    // salt (see note below)
+          Buffer.alloc(0),   // salt
           Buffer.alloc(0),   // context separation
-          32)
+          32);
 
         const kb = Buffer.from(key); // derived
-        console.log("shared secret:", crypto.createHash("sha256").update(sharedSecret).digest("hex"))
-        console.log("key from shared secret:", kb.toString("hex"));
+        logger.debug(`shared secret: ${crypto.createHash("sha256").update(sharedSecret).digest("hex")}`)
+        logger.debug(`key from shared secret: ${kb.toString("hex")}`);
 
         socket.removeAllListeners("data");
 
@@ -172,7 +178,7 @@ async function connectTunnel({
 
 function wrapSocketWithEncryption(logger: Logger, socket: net.Socket, hkdfKey: ArrayBuffer, ciphertext: Uint8Array): stream.Duplex {
   const key = Buffer.from(hkdfKey); // derived
-  console.log("key:", key.toString("hex"));
+  logger.debug(`key: ${key.toString("hex")}`);
 
   const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(logger, key, ciphertext);
 
@@ -269,20 +275,35 @@ function generateSocketName(): string {
 
 export type SdkOptions = {
   org_id?: string;
-  token?: string;
-  relayHost?: string;
-  relayPort?: number;
+  tokenProvider: TokenProvider;
+  relayHost: string;
+  relayPort: number;
   logger: Logger;
 }
 
-export type SdkOptionsInput = Partial<Omit<SdkOptions, "logger">> & {
-  logger?: Logger;
+export type SdkOptionsInput = Partial<SdkOptions>;
+
+const defaultOptions: Pick<SdkOptions, "logger" | "tokenProvider" | "relayHost" | "relayPort"> = {
+  logger: noopLogger,
+  tokenProvider: chainedTokenProvider,
+  relayHost: RELAY_HOST,
+  relayPort: RELAY_PORT
 };
+
+function resolveOptions(input: SdkOptionsInput = {}): SdkOptions {
+  return {
+    ...defaultOptions,
+    ...input,
+  };
+}
 
 export type ConnectOptions = {
   service: string;
 }
 
+/**
+ * The encryption scheme used to encrypt traffic between the SDK and the remote agent.
+ */
 type EncryptionScheme = "ML-KEM" | undefined;
 
 /**
@@ -299,13 +320,13 @@ export interface Tunnel {
   serviceName: string;
   /**
    * The host that we're connected to on the other side of the network.
-   * 
+   *
    * This could be any IPv4 address, IPv6 address or valid hostname.
-   * 
+   *
    * This can be necessary for several use-cases, such as:
    * 
    * * To perform SNI properly with a TLS-enabled service, or;
-   * * To pass the correct host header to an HTTP server that validates them
+   * * To pass the correct host header to an HTTP server which validates them
    */
   remoteHost: string;
   /**
@@ -326,7 +347,7 @@ export interface Tunnel {
  * Although this behaves as a reliable ordered stream of bytes, you should treat this this as a generic
  * `stream.Duplex` since it abstracts the underlying complexity of the tunnel without making
  * assumptions about what Layer 4 transport is being used.
- * 
+ *
  * Where a concrete `net.Socket` is required, the {@link StreamLike.asSocket} method is available.
  *
  * This should be disposed of properly when no longer needed.
@@ -339,7 +360,7 @@ export interface StreamLike extends Tunnel, stream.Duplex {
    * access. Where possible, the owning {@link StreamLike} instance should be preferred, since
    * exact TCP semantics cannot be guaranteed.
    *
-   * @returns reference to the same underlying {@link StreamLike} as a `net.Socket`
+   * @returns reference to the same underlying {@link StreamLike} object as a `net.Socket`
    */
   asSocket(): net.Socket
 }
@@ -401,11 +422,17 @@ function getOrgId(fromOptions?: string): string | undefined {
   return fromOptions ?? process.env.HARDPOINT_ORG_ID;
 }
 
-function getToken(fromOptions?: string): string | undefined {
-  return fromOptions ?? process.env.VERCEL_OIDC_TOKEN;
-}
-
 let _sdk: Sdk | undefined;
+
+/*
+ * We have 2 orthogonal concepts we need to deal with;
+ *
+ * - Runtime environment (Vercel, CF Workers, e.t.c)
+ * - Web framework in use
+ *
+ * We can auto-detect the first while allowing overrides, but the framework
+ * must be set up by the user.
+ */
 
 /**
  * The single touchpoint to the Hardpoint SDK.
@@ -414,8 +441,8 @@ let _sdk: Sdk | undefined;
  */
 export class Sdk {
   private readonly logger: Logger;
-  private readonly org_id: string;
-  private readonly token: string;
+  private readonly orgId: string;
+  private readonly tokenProvider: TokenProvider;
   private readonly relayHost: string;
   private readonly relayPort: number;
 
@@ -440,22 +467,33 @@ export class Sdk {
    * This should only be done once on application startup. See {@link SdkOptions} for configuration options.
    */
   private constructor(options: SdkOptionsInput = {}) {
-    const derivedToken = getToken(options.token)
-    if (!derivedToken) {
-      throw new Error(
-        "OIDC token not found. Set VERCEL_OIDC_TOKEN environment variable or pass token in getInstance()."
-      );
-    }
+    const merged = resolveOptions(options);
     const derivedOrgId = getOrgId(options.org_id);
     if (!derivedOrgId) {
       throw new Error("Missing Org ID! See the docs at https://github.com/hardpointlabs/sdk to learn more");
     }
 
     this.logger = options.logger ?? noopLogger;
-    this.org_id = derivedOrgId;
-    this.token = derivedToken;
+    this.orgId = derivedOrgId;
+    this.tokenProvider = merged.tokenProvider;
     this.relayHost = options.relayHost ?? RELAY_HOST;
     this.relayPort = options.relayPort ?? RELAY_PORT;
+  }
+
+  private async setupTunnel(options: string | ConnectOptions, ctx: RequestContext): Promise<stream.Duplex> {
+    const service = typeof options === "string" ? options : options.service;
+    const token = await this.tokenProvider(ctx);
+    if (!token) {
+      return Promise.reject("Unable to derive auth token to set up a tunnel! ee the docs at https://github.com/hardpointlabs/sdk to learn more")
+    }
+    return connectTunnel({
+      logger: this.logger,
+      orgId: this.orgId,
+      relayHost: this.relayHost,
+      relayPort: this.relayPort,
+      token: token!,
+      service: service,
+    });
   }
 
   /**
@@ -463,24 +501,15 @@ export class Sdk {
    *
    * Locates the service and sets up an encrypted connection.
    *
-   * @param options name of a Hardpoint service
+   * @param options name of a Hardpoint-defined service
    * @returns An encrypted tunnel to the desired service. For the most part you can treat
    * this like a regular socket and pass it to any client library that takes a stream.
    *
    * See the docs for concrete examples with specific client libraries.
    */
-  public async connect(options: string | ConnectOptions): Promise<StreamLike> {
-    const service = typeof options === "string" ? options : options.service;
-    const socket = await connectTunnel({
-      logger: this.logger,
-      org_id: this.org_id,
-      relayHost: this.relayHost,
-      relayPort: this.relayPort,
-      token: this.token,
-      service: service,
-    });
-
-    return streamToSocketLike(socket);
+  public async connect(options: string | ConnectOptions, ctx: RequestContext): Promise<StreamLike> {
+    const tunnel = await this.setupTunnel(options, ctx);
+    return streamToSocketLike(tunnel);
   }
 
   /**
@@ -498,18 +527,9 @@ export class Sdk {
    *
    * See the docs for concrete examples with specific client libraries.
    */
-  public async connectAndListen(options: ConnectOptions): Promise<UnixSocketLike> {
-    const service = typeof options === "string" ? options : options.service;
-    const remoteSocket = await connectTunnel({
-      logger: this.logger,
-      org_id: this.org_id,
-      relayHost: this.relayHost,
-      relayPort: this.relayPort,
-      token: this.token,
-      service: service,
-    });
-
-    const handle = socketLikeToUnixLike(remoteSocket)
+  public async connectAndListen(options: string | ConnectOptions, ctx: RequestContext): Promise<UnixSocketLike> {
+    const tunnel = await this.setupTunnel(options, ctx);
+    const handle = socketLikeToUnixLike(tunnel);
     await handle.listen();
     return handle;
   }
