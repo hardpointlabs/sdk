@@ -6,9 +6,9 @@ export interface HeaderProvider {
    * Attempt to look up a header value in the incoming request.
    *
    * @param name name of HTTP header. Case-insensitive.
-   * @returns the first value of a given HTTP header in a request, or null if the header is not present
+   * @returns the first value of a given HTTP header in a request, or undefined if the header is not present
    */
-  get(name: string): string | null;
+  get(name: string): string | undefined;
 }
 
 /**

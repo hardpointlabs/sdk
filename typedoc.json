@@ -4,7 +4,7 @@
   "validation": {
     "notExported": false
   },
-  "entryPoints": ["./src/index.ts", "./src/logging.ts"],
+  "entryPoints": ["./src/index.ts", "./src/logging.ts", "./src/auth.ts"],
   "externalSymbolLinkMappings": {
     "@types/node": {
       "Stream.Writable.write": "#",

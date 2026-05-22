@@ -274,14 +274,14 @@ function generateSocketName(): string {
 }
 
 export type SdkOptions = {
-  org_id?: string;
+  orgId: string;
   tokenProvider: TokenProvider;
   relayHost: string;
   relayPort: number;
   logger: Logger;
 }
 
-export type SdkOptionsInput = Partial<SdkOptions>;
+export type SdkOptionsInput = Partial<SdkOptions> & {orgId: string};
 
 const defaultOptions: Pick<SdkOptions, "logger" | "tokenProvider" | "relayHost" | "relayPort"> = {
   logger: noopLogger,
@@ -290,7 +290,7 @@ const defaultOptions: Pick<SdkOptions, "logger" | "tokenProvider" | "relayHost" 
   relayPort: RELAY_PORT
 };
 
-function resolveOptions(input: SdkOptionsInput = {}): SdkOptions {
+function resolveOptions(input: SdkOptionsInput): SdkOptions {
   return {
     ...defaultOptions,
     ...input,
@@ -418,10 +418,6 @@ function asSocket(duplex: stream.Duplex): net.Socket {
   return socket;
 }
 
-function getOrgId(fromOptions?: string): string | undefined {
-  return fromOptions ?? process.env.HARDPOINT_ORG_ID;
-}
-
 let _sdk: Sdk | undefined;
 
 /*
@@ -454,9 +450,10 @@ export class Sdk {
    * @param options SDK configuration options
    * @returns The singleton SDK instance
    */
-  public static init(options: SdkOptionsInput = {}): Sdk {
+  public static init(options: SdkOptionsInput): Sdk {
     if (!_sdk) {
-      _sdk = new Sdk(options);
+      const merged = resolveOptions(options);
+      _sdk = new Sdk(merged);
     }
     return _sdk;
   }
@@ -466,18 +463,12 @@ export class Sdk {
    *
    * This should only be done once on application startup. See {@link SdkOptions} for configuration options.
    */
-  private constructor(options: SdkOptionsInput = {}) {
-    const merged = resolveOptions(options);
-    const derivedOrgId = getOrgId(options.org_id);
-    if (!derivedOrgId) {
-      throw new Error("Missing Org ID! See the docs at https://github.com/hardpointlabs/sdk to learn more");
-    }
-
+  private constructor(options: SdkOptions) {
     this.logger = options.logger ?? noopLogger;
-    this.orgId = derivedOrgId;
-    this.tokenProvider = merged.tokenProvider;
-    this.relayHost = options.relayHost ?? RELAY_HOST;
-    this.relayPort = options.relayPort ?? RELAY_PORT;
+    this.orgId = options.orgId;
+    this.tokenProvider = options.tokenProvider;
+    this.relayHost = options.relayHost;
+    this.relayPort = options.relayPort;
   }
 
   private async setupTunnel(options: string | ConnectOptions, ctx: RequestContext): Promise<stream.Duplex> {
