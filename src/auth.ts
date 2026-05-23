@@ -34,7 +34,7 @@ const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
 }
 
 // OIDC token lookup for GitHub Actions runner environment
-const gitHubTokenProvider: TokenProvider = async (ctx: RequestContext) => {
+const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
   return process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 }
 
