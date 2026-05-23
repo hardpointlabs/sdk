@@ -29,16 +29,11 @@ function logCipherDetails(logger: Logger, iv: Buffer, authTag: Buffer, finalChun
   });
 }
 
-function createEncryptionTransforms(logger: Logger, key: Buffer, ciphertext: Uint8Array): { encrypt: stream.Transform; decrypt: stream.Transform } {
+function createEncryptionTransforms(logger: Logger, key: Buffer): { encrypt: stream.Transform; decrypt: stream.Transform } {
   const ivLength = 12;
   const authTagLength = 16;
 
   const encrypt = new stream.Transform({
-    construct(callback) {
-      console.log("Sending ciphertext");
-      this.push(ciphertext);
-      callback();
-    },
     transform(chunk: Buffer, _encoding, callback) {
       const iv = crypto.randomBytes(ivLength);
       const cipher = crypto.createCipheriv(CIPHER_ALGO, key, iv);
@@ -164,11 +159,16 @@ async function connectTunnel({
         socket.removeAllListeners("data");
 
         if (rest?.length) {
+          // trim any remaining response headers we're not interested in
           socket.unshift(Buffer.from(rest));
         }
 
-        const encryptedSocket = wrapSocketWithEncryption(logger, socket, key, ciphertext);
-        resolve(encryptedSocket);
+        // sending the SDK-side ciphertext back is the last part of the ML-KEM handshake
+        logger.debug("Sending ciphertext");
+        socket.write(ciphertext, () => {
+          const encryptedSocket = wrapSocketWithEncryption(logger, socket, key);
+          resolve(encryptedSocket);
+        });
       }
     });
 
@@ -176,11 +176,11 @@ async function connectTunnel({
   });
 }
 
-function wrapSocketWithEncryption(logger: Logger, socket: net.Socket, hkdfKey: ArrayBuffer, ciphertext: Uint8Array): stream.Duplex {
+function wrapSocketWithEncryption(logger: Logger, socket: net.Socket, hkdfKey: ArrayBuffer): stream.Duplex {
   const key = Buffer.from(hkdfKey); // derived
   logger.debug(`key: ${key.toString("hex")}`);
 
-  const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(logger, key, ciphertext);
+  const { encrypt, decrypt }: { encrypt: stream.Transform; decrypt: stream.Transform } = createEncryptionTransforms(logger, key);
 
   const encoder: stream.Transform = new lpstream.Encoder();
   const decoder: stream.Transform = new lpstream.Decoder();

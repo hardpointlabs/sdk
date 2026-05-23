@@ -28,8 +28,14 @@ export interface RequestContext {
  */
 export type TokenProvider = (ctx: RequestContext) => Promise<string | undefined>;
 
+// OIDC token lookup for Vercel runtime environment
 const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
   return ctx.headers.get("x-vercel-oidc-token") ?? process.env.VERCEL_OIDC_TOKEN;
+}
+
+// OIDC token lookup for GitHub Actions runner environment
+const gitHubTokenProvider: TokenProvider = async (ctx: RequestContext) => {
+  return process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 }
 
 /**
@@ -41,5 +47,5 @@ const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
  * @returns chain of token provider implementations
  */
 export const chainedTokenProvider: TokenProvider = async (ctx: RequestContext) => {
-  return vercelTokenProvider(ctx);
+  return vercelTokenProvider(ctx) ?? gitHubTokenProvider;
 }
