@@ -11,8 +11,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: "npm"
@@ -22,8 +22,8 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: "npm"
@@ -33,10 +33,48 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: "npm"
       - run: npm ci
       - run: npm run build
+  integration-test:
+    needs: [lint, typecheck, build]
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        runtime: [node-22, deno, bun]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - name: Setup Node 22
+        if: matrix.runtime == 'node-22'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Setup Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Setup Bun
+        if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+      - name: Integration test (${{ matrix.runtime }})
+        env:
+          HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
+        run: |
+          case "${{ matrix.runtime }}" in
+            node-22) npm run integration-test:node ;;
+            deno)    npm run integration-test:deno ;;
+            bun)     npm run integration-test:bun ;;
+          esac
