@@ -7,10 +7,11 @@ if (!ORG_ID) {
 }
 
 const sdk = Sdk.init({ orgId: ORG_ID });
-
-const tunnel = await sdk.connect("hello", {
+const mockRequestContext = {
   headers: { get: () => undefined }
-});
+}
+
+const tunnel = await sdk.connect("hello", mockRequestContext);
 
 try {
   const http = await import("node:http");

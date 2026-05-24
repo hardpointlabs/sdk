@@ -72,6 +72,7 @@ jobs:
         env:
           HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
         run: |
+          env | grep ACTIONS
           case "${{ matrix.runtime }}" in
             node-22) npm run integration-test:node ;;
             deno)    npm run integration-test:deno ;;

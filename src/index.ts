@@ -475,7 +475,7 @@ export class Sdk {
     const service = typeof options === "string" ? options : options.service;
     const token = await this.tokenProvider(ctx);
     if (!token) {
-      return Promise.reject("Unable to derive auth token to set up a tunnel! ee the docs at https://github.com/hardpointlabs/sdk to learn more")
+      return Promise.reject("Unable to derive auth token to set up a tunnel! See the docs at https://github.com/hardpointlabs/sdk to learn more")
     }
     return connectTunnel({
       logger: this.logger,

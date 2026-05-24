@@ -2,12 +2,14 @@
 
 ## Overview
 
-This repo contains the Hardpoint SDK, an ES module which is designed to be integrated into a users' serverless application in order for it to communicate with their private Hardpoint network. It is responsible for:
+This repo contains the Hardpoint SDK, an ES module which is designed to be integrated into a users' application in order for it to communicate with their private Hardpoint network. It is responsible for:
 
 - Authentication: obtaining credentials from the runtime environment to auth into Hardpoint network (e.g. Vercel-injected OIDC token)
 - Setting up a tunnel to a remote service, in the form of an HTTP CONNECT request. The remote host it directly connects to is colloquially known as the 'relay'. Behind it is a few moving parts but that's opaque to the user; the important thing is
 - Doing the client-side of the end-to-end encryption dance using [ML-KEM](https://en.wikipedia.org/wiki/ML-KEM) to ensure that traffic passing through the Hardpoint relay is always encrypted and therefore private, even if the underlying traffic isn't, and transparently encrypting/decrypting everything going across the wire
 - Exposing integration points to established tunnels for common client libraries to use
+
+It's optimized to discover OIDC tokens from several runtime environments such as [Vercel](https://vercel.com), [Fly.io](https://fly.io) and [Github Actions runners](https://docs.github.com/en/actions)
 
 ## Environment setup
 
