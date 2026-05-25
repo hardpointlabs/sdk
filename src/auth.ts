@@ -35,7 +35,14 @@ const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
 
 // OIDC token lookup for GitHub Actions runner environment
 const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
-  return process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  console.log("trying GHA provider")
+  const token_request_token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!token_request_token) {
+    console.log("TOKEN request token not found")
+    return undefined;
+  }
+  console.log(`Found token request token: ${token_request_token}`)
+  return token_request_token;
 }
 
 /**
