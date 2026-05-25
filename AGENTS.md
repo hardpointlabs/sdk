@@ -31,6 +31,8 @@ It's optimized to discover OIDC tokens from several runtime environments such as
 - The SDK has an intentionally light footprint: it has 2 direct dependencies, one (`@hardpointlabs/length-prefixed-stream`) which we control, used for framing tunnel messages. We can make changes to this code if necessary. The other (`mlkem`) which is necessary to derive a shared secret and ciphertext to complete the ML-KEM handshake. Avoid adding other libraries to the list of _runtime_ dependencies ('dependencies' in package.json)
 - You _may_ add more dev dependencies if it is strictly necessary ('devDependencies' in package.json)
 - Stick to implementing functionality in TypeScript
+- Since this is a widely deployed SDK, use semicolons at line endings
+- 2 spaces for tabs
 
 ## Workflow
 

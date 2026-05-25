@@ -45,6 +45,8 @@ const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
   return token_request_token;
 }
 
+const providerChain = [vercelTokenProvider, gitHubTokenProvider];
+
 /**
  * A composite chain of underlying TokenProvider implementations.
  *
@@ -54,5 +56,11 @@ const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
  * @returns chain of token provider implementations
  */
 export const chainedTokenProvider: TokenProvider = async (ctx: RequestContext) => {
-  return vercelTokenProvider(ctx) ?? gitHubTokenProvider;
+  for (const provider of providerChain) {
+    const result = await provider(ctx);
+    if (result) {
+      return result;
+    }
+  }
+  return undefined;
 }
