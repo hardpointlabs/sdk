@@ -35,14 +35,44 @@ const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
 
 // OIDC token lookup for GitHub Actions runner environment
 const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
-  console.log("trying GHA provider")
-  const token_request_token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
-  if (!token_request_token) {
-    console.log("TOKEN request token not found")
+  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!requestToken) {
+    console.log("ACTIONS_ID_TOKEN_REQUEST_TOKEN not present in environment");
     return undefined;
   }
-  console.log(`Found token request token: ${token_request_token}`)
-  return token_request_token;
+
+  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  if (!requestUrl) {
+    console.log("ACTIONS_ID_TOKEN_REQUEST_URL not present in environment");
+    return undefined;
+  }
+
+  try {
+    const response = await fetch(requestUrl, {
+      method: "POST",
+      body: "{}",
+      headers: {
+        'Authorization': `Bearer ${requestToken}`,
+        'Accept': "application/json; api-version=2.0",
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      console.log(
+        `OIDC token request failed: ${response.status} ${response.statusText}`
+      );
+      return undefined;
+    }
+    const data = await response.json() as { value?: string };
+    if (!data.value) {
+      console.log("OIDC token response missing 'value' field");
+      return undefined;
+    }
+    return data.value;
+  } catch (err) {
+    console.log(`OIDC token request error: ${err}`);
+    return undefined;
+  }
 }
 
 const providerChain = [vercelTokenProvider, gitHubTokenProvider];

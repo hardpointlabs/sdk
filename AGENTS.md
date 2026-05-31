@@ -2,7 +2,9 @@
 
 ## Overview
 
-This repo contains the Hardpoint SDK, an ES module which is designed to be integrated into a users' application in order for it to communicate with their private Hardpoint network. It is responsible for:
+This repo contains the Hardpoint SDK, an ES module which is designed to be integrated into a users' application in order for it to communicate with their private Hardpoint network. For more information about how this fits into the Hardpoint ecosystem consult the [org readme](https://github.com/hardpointlabs/.github/blob/main/profile/README.md).
+
+It is responsible for:
 
 - Authentication: obtaining credentials from the runtime environment to auth into Hardpoint network (e.g. Vercel-injected OIDC token)
 - Setting up a tunnel to a remote service, in the form of an HTTP CONNECT request. The remote host it directly connects to is colloquially known as the 'relay'. Behind it is a few moving parts but that's opaque to the user; the important thing is
@@ -33,6 +35,7 @@ It's optimized to discover OIDC tokens from several runtime environments such as
 - Stick to implementing functionality in TypeScript
 - Since this is a widely deployed SDK, use semicolons at line endings
 - 2 spaces for tabs
+- Trim any trailing whitespace at the end of lines
 
 ## Workflow
 
