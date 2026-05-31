@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CA_CERT = fs.readFileSync(path.join(__dirname, "ca.crt"));
 
 function logCipherDetails(logger: Logger, iv: Buffer, authTag: Buffer, finalChunk: Buffer) {
-  logger.debug({
+  logger.debug("got cipher details", {
     "iv": crypto.createHash("sha256").update(iv).digest("hex"),
     "tag": crypto.createHash("sha256").update(authTag).digest("hex"),
     "ciphertext": crypto.createHash("sha256").update(Buffer.concat([finalChunk, authTag])).digest("hex")

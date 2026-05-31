@@ -1,4 +1,23 @@
 import { Sdk } from "../dist/index.js";
+import { Logger, LogLevel } from "../dist/logging.js";
+
+const LEVELS = { trace: 0, debug: 1, info: 2, warn: 3, error: 4 };
+
+function makeLogger(minLevel: LogLevel = 'debug'): Logger {
+  const log = (level: LogLevel, msg: string, props?: Record<string, unknown>) => {
+    if (LEVELS[level] < LEVELS[minLevel]) return;
+    const line = JSON.stringify({ ts: Date.now(), level, msg, ...props });
+    (level === 'error' || level === 'warn' ? console.error : console.log)(line);
+  };
+  return {
+    trace: (msg, meta) => log('trace', String(msg), meta),
+    debug: (msg, meta) => log('debug', String(msg), meta),
+    info:  (msg, meta) => log('info', msg, meta),
+    warn:  (msg, meta) => log('warn', msg, meta),
+    error: (msg, meta) => log('error', msg, meta),
+  };
+}
+
 
 const ORG_ID = process.env.HARDPOINT_ORG_ID;
 if (!ORG_ID) {
@@ -6,7 +25,7 @@ if (!ORG_ID) {
   process.exit(1);
 }
 
-const sdk = Sdk.init({ orgId: ORG_ID });
+const sdk = Sdk.init({ orgId: ORG_ID, logger:  makeLogger()});
 const mockRequestContext = {
   headers: { get: () => undefined }
 }
