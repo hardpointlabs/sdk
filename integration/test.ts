@@ -24,8 +24,8 @@ try {
           createConnection: () => tunnel.asSocket(),
           path: "/",
           method: "GET",
-          host: "hello",
-          port: 8080,
+          host: "example.com",
+          port: 80,
         },
         (res) => {
           let body = "";
