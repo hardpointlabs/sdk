@@ -1,5 +1,6 @@
 import { Sdk } from "../dist/index.js";
 import { consoleLogger } from "../dist/logging.js";
+import * as http from 'http';
 
 const ORG_ID = process.env.HARDPOINT_ORG_ID;
 if (!ORG_ID) {
@@ -13,8 +14,6 @@ const mockRequestContext = {
 }
 
 const tunnel = await sdk.connect("hello", mockRequestContext);
-
-const http = await import("node:http");
 
 let request: http.ClientRequest | undefined;
 
