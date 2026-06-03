@@ -1,6 +1,6 @@
 import { Sdk } from "../dist/index.js";
 import { consoleLogger } from "../dist/logging.js";
-import * as http from 'http';
+import * as http from 'node:http';
 
 const ORG_ID = process.env.HARDPOINT_ORG_ID;
 if (!ORG_ID) {
