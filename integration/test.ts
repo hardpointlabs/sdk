@@ -14,9 +14,11 @@ const mockRequestContext = {
 
 const tunnel = await sdk.connect("hello", mockRequestContext);
 
-try {
-  const http = await import("node:http");
+const http = await import("node:http");
 
+let request: http.ClientRequest | undefined;
+
+try {
   const response = await new Promise<{ status: number; body: string }>(
     (resolve, reject) => {
       const req = http.request(
@@ -35,6 +37,7 @@ try {
           );
         }
       );
+      request = req;
       req.on("error", reject);
       req.setTimeout(15_000, () => {
         req.destroy(new Error("Request timed out after 15s"));
@@ -55,5 +58,6 @@ try {
 
   console.log("Integration test passed!");
 } finally {
+  request?.destroy();
   tunnel.destroy();
 }
