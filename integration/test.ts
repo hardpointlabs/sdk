@@ -2,13 +2,7 @@ import { Sdk } from "../dist/index.js";
 import { consoleLogger } from "../dist/logging.js";
 import * as http from 'node:http';
 
-const ORG_ID = process.env.HARDPOINT_ORG_ID;
-if (!ORG_ID) {
-  console.error("HARDPOINT_ORG_ID environment variable is required");
-  process.exit(1);
-}
-
-const sdk = Sdk.init({ orgId: ORG_ID, logger:  consoleLogger('trace')});
+const sdk = Sdk.init({orgId: process.env.HARDPOINT_ORG_ID!, logger:  consoleLogger('trace')});
 const mockRequestContext = {
   headers: { get: () => undefined }
 }
@@ -38,6 +32,7 @@ const response = await new Promise<{ status: number; body: string }>(
       req.destroy(new Error("Request timed out after 15s"));
     });
     req.end();
+    req.destroy();
   }
 );
 
@@ -52,3 +47,6 @@ if (response.status !== 200) {
 }
 
 console.log("Integration test passed!");
+
+tunnel.destroy();
+// process.exit(0);
