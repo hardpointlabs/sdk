@@ -82,7 +82,7 @@ const providerChain = [vercelTokenProvider, gitHubTokenProvider];
  *
  * Attempts to derive a token from multiple implementations until either a token is found or no more implementations are available.
  *
- * @param ctx {@type RequestContext} object
+ * @param ctx {@link RequestContext} object
  * @returns chain of token provider implementations
  */
 export const chainedTokenProvider: TokenProvider = async (ctx: RequestContext) => {

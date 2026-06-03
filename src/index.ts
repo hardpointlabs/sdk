@@ -164,8 +164,13 @@ async function connectTunnel({
         }
 
         // sending the SDK-side ciphertext back is the last part of the ML-KEM handshake
-        logger.debug("Sending ciphertext");
-        socket.write(ciphertext, () => {
+        logger.debug(`Sending ciphertext of length: ${ciphertext.length}`);
+        // remote side expects us to be framed at this point; create a one-off lpstream encoder
+        // to write the ciphertext back, ensuring we don't resolve the promise until the
+        // key exchange is complete
+        const encoder = new lpstream.Encoder();
+        encoder.pipe(socket);
+        encoder.write(ciphertext, () => {
           const encryptedSocket = wrapSocketWithEncryption(logger, socket, key);
           resolve(encryptedSocket);
         });

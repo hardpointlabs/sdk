@@ -11,11 +11,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "hardpoint": "./dist/cli.js"
-  },
   "directories": {
-    "bin": "bin",
     "src": "src",
     "dist": "dist",
     "test": "test"
