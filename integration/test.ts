@@ -32,7 +32,6 @@ const response = await new Promise<{ status: number; body: string }>(
       req.destroy(new Error("Request timed out after 15s"));
     });
     req.end();
-    req.destroy();
   }
 );
 
@@ -49,4 +48,4 @@ if (response.status !== 200) {
 console.log("Integration test passed!");
 
 tunnel.destroy();
-// process.exit(0);
+process.exit(0);
