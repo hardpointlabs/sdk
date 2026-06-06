@@ -1,0 +1,56 @@
+name: Integration Test
+
+on:
+  workflow_call:
+    secrets:
+      HARDPOINT_ORG_ID:
+        required: true
+
+jobs:
+  matrix:
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        runtime: [node-22, deno, bun]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-package
+      - name: Setup Node 22
+        if: matrix.runtime == 'node-22'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Setup Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Setup Bun
+        if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+      - name: Install & test (${{ matrix.runtime }})
+        working-directory: integration
+        env:
+          HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
+        run: |
+          case "${{ matrix.runtime }}" in
+            node-22)
+              npm install ../hardpointlabs-sdk-*.tgz --omit=dev
+              npm install --save-dev typescript @types/node
+              npm run build
+              npm test
+              ;;
+            deno)
+              npm install ../hardpointlabs-sdk-*.tgz --omit=dev
+              deno run --allow-all --node-modules-dir=manual test.ts
+              ;;
+            bun)
+              bun install ../hardpointlabs-sdk-*.tgz
+              bun run test.ts
+              ;;
+          esac
