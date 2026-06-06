@@ -42,6 +42,7 @@ jobs:
       - run: npm run build
   integration-test:
     needs: [lint, typecheck, build]
+<<<<<<< Updated upstream
     permissions:
       id-token: write
       contents: read
@@ -78,3 +79,8 @@ jobs:
             deno)    npm run integration-test:deno ;;
             bun)     npm run integration-test:bun ;;
           esac
+=======
+    uses: ./.github/workflows/integration-test.yml
+    secrets:
+      HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
+>>>>>>> Stashed changes
