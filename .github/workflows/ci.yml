@@ -41,7 +41,7 @@ jobs:
       - run: npm run build
       - id: pack
         run: echo "package=$(npm pack)" >> $GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: build-package
           path: ${{ steps.pack.outputs.package }}
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: build-package
       - name: Setup Node 22
@@ -87,7 +87,7 @@ jobs:
               ;;
             deno)
               npm install ../hardpointlabs-sdk-*.tgz --omit=dev
-              deno run --allow-all --node-modules-dir test.ts
+              deno run --allow-all --node-modules-dir=manual test.ts
               ;;
             bun)
               bun install ../hardpointlabs-sdk-*.tgz
