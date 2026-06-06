@@ -4,6 +4,7 @@ on:
   workflow_call:
     secrets:
       HARDPOINT_ORG_ID:
+        description: Hardpoint organization ID from the caller
         required: true
 
 jobs:
