@@ -1,6 +1,5 @@
 import { Socket } from "node:net";
 import { Duplex } from "node:stream";
-import { Sdk } from "./sdk.js";
 
 /**
  * The encryption scheme used to encrypt traffic between the SDK and the remote agent.
@@ -75,7 +74,7 @@ export interface StreamLike extends Tunnel, Duplex {
  * `stream.Duplex` directly.
  *
  * As with {@link StreamLike}, this should be disposed of properly when no longer needed
- * to clean up associated network resources. See the main {@link Sdk} docs for details. Note that
+ * to clean up associated network resources. See the main {@link sdk.Sdk} docs for details. Note that
  * failing to dispose of this will not just leak the underlying tunnel socket, but it will also leave
  * the UNIX socket listener open.
  */
