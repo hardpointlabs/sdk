@@ -20,11 +20,7 @@
     "build": "npx tsc && cp ./lib/ca.crt ./dist/ && npx typedoc --out ./dist/docs && node scripts/run-fta.js . --config-path ./fta.json",
     "docs": "npx typedoc --out ./dist/docs",
     "lint": "eslint src/",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "integration-test": "npm run integration-test:node",
-    "integration-test:node": "tsc -p integration/tsconfig.json --outDir integration && node integration/test.js",
-    "integration-test:deno": "deno run --allow-all --check integration/test.ts",
-    "integration-test:bun": "bun run integration/test.ts"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

@@ -1,8 +1,7 @@
-import { Sdk } from "../dist/index.js";
-import { consoleLogger } from "../dist/logging.js";
+import { Sdk, consoleLogger } from "@hardpointlabs/sdk";
 import * as http from 'node:http';
 
-const sdk = Sdk.init({orgId: process.env.HARDPOINT_ORG_ID!, logger:  consoleLogger('trace')});
+const sdk = Sdk.init({orgId: process.env.HARDPOINT_ORG_ID!, logger: consoleLogger('trace')});
 const mockRequestContext = {
   headers: { get: () => undefined }
 }

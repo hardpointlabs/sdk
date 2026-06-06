@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as lpstream from "@hardpointlabs/length-prefixed-stream";
 import { createMlKem768 } from "mlkem";
 import { Logger, noopLogger } from "./logging.js";
+export { consoleLogger, LogLevel } from "./logging.js";
 import { chainedTokenProvider, RequestContext, TokenProvider } from "./auth.js";
 
 const H7T_PEER_PUBKEY_HEADER = "H7T-Peer-PubKey";

@@ -15,7 +15,7 @@ It's optimized to discover OIDC tokens from several runtime environments such as
 
 ## Environment setup
 
-- The SDK targets modern nodejs (at least 22) and aims to support the last 2 LTS versions
+- The SDK targets modern nodejs (at least 22) and aims to support the last 2 LTS versions, plus Bun and Deno
 - It's a standard NPM package
 - Implementation is 100% TypeScript (currently using major version 6)
 - Uses TypeDoc to generate documentation

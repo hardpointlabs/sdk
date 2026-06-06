@@ -39,6 +39,13 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
+      - id: pack
+        run: echo "package=$(npm pack)" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-package
+          path: ${{ steps.pack.outputs.package }}
+
   integration-test:
     needs: [lint, typecheck, build]
     permissions:
@@ -50,11 +57,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run build
+          name: build-package
       - name: Setup Node 22
         if: matrix.runtime == 'node-22'
         uses: actions/setup-node@v6
@@ -68,13 +73,24 @@ jobs:
       - name: Setup Bun
         if: matrix.runtime == 'bun'
         uses: oven-sh/setup-bun@v2
-      - name: Integration test (${{ matrix.runtime }})
+      - name: Install & test (${{ matrix.runtime }})
+        working-directory: integration
         env:
           HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
         run: |
-          env | grep ACTIONS
           case "${{ matrix.runtime }}" in
-            node-22) npm run integration-test:node ;;
-            deno)    npm run integration-test:deno ;;
-            bun)     npm run integration-test:bun ;;
+            node-22)
+              npm install ../hardpointlabs-sdk-*.tgz --omit=dev
+              npm install --save-dev typescript @types/node
+              npm run build
+              npm test
+              ;;
+            deno)
+              npm install ../hardpointlabs-sdk-*.tgz --omit=dev
+              deno run --allow-all --node-modules-dir test.ts
+              ;;
+            bun)
+              bun install ../hardpointlabs-sdk-*.tgz
+              bun run test.ts
+              ;;
           esac
