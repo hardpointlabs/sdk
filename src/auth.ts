@@ -35,17 +35,62 @@ const vercelTokenProvider: TokenProvider = async (ctx: RequestContext) => {
 
 // OIDC token lookup for GitHub Actions runner environment
 const gitHubTokenProvider: TokenProvider = async (_: RequestContext) => {
-  return process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!requestToken) {
+    console.log("ACTIONS_ID_TOKEN_REQUEST_TOKEN not present in environment");
+    return undefined;
+  }
+
+  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  if (!requestUrl) {
+    console.log("ACTIONS_ID_TOKEN_REQUEST_URL not present in environment");
+    return undefined;
+  }
+
+  try {
+    const response = await fetch(requestUrl, {
+      method: "POST",
+      body: "{}",
+      headers: {
+        'Authorization': `Bearer ${requestToken}`,
+        'Accept': "application/json; api-version=2.0",
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      console.log(
+        `OIDC token request failed: ${response.status} ${response.statusText}`
+      );
+      return undefined;
+    }
+    const data = await response.json() as { value?: string };
+    if (!data.value) {
+      console.log("OIDC token response missing 'value' field");
+      return undefined;
+    }
+    return data.value;
+  } catch (err) {
+    console.log(`OIDC token request error: ${err}`);
+    return undefined;
+  }
 }
+
+const providerChain = [vercelTokenProvider, gitHubTokenProvider];
 
 /**
  * A composite chain of underlying TokenProvider implementations.
  *
  * Attempts to derive a token from multiple implementations until either a token is found or no more implementations are available.
  *
- * @param ctx {@type RequestContext} object
+ * @param ctx {@link RequestContext} object
  * @returns chain of token provider implementations
  */
 export const chainedTokenProvider: TokenProvider = async (ctx: RequestContext) => {
-  return vercelTokenProvider(ctx) ?? gitHubTokenProvider;
+  for (const provider of providerChain) {
+    const result = await provider(ctx);
+    if (result) {
+      return result;
+    }
+  }
+  return undefined;
 }

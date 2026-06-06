@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as lpstream from "@hardpointlabs/length-prefixed-stream";
 import { createMlKem768 } from "mlkem";
 import { Logger, noopLogger } from "./logging.js";
+export { consoleLogger, LogLevel } from "./logging.js";
 import { chainedTokenProvider, RequestContext, TokenProvider } from "./auth.js";
 
 const H7T_PEER_PUBKEY_HEADER = "H7T-Peer-PubKey";
@@ -22,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CA_CERT = fs.readFileSync(path.join(__dirname, "ca.crt"));
 
 function logCipherDetails(logger: Logger, iv: Buffer, authTag: Buffer, finalChunk: Buffer) {
-  logger.debug({
+  logger.debug("got cipher details", {
     "iv": crypto.createHash("sha256").update(iv).digest("hex"),
     "tag": crypto.createHash("sha256").update(authTag).digest("hex"),
     "ciphertext": crypto.createHash("sha256").update(Buffer.concat([finalChunk, authTag])).digest("hex")
@@ -164,8 +165,13 @@ async function connectTunnel({
         }
 
         // sending the SDK-side ciphertext back is the last part of the ML-KEM handshake
-        logger.debug("Sending ciphertext");
-        socket.write(ciphertext, () => {
+        logger.debug(`Sending ciphertext of length: ${ciphertext.length}`);
+        // remote side expects us to be framed at this point; create a one-off lpstream encoder
+        // to write the ciphertext back, ensuring we don't resolve the promise until the
+        // key exchange is complete
+        const encoder = new lpstream.Encoder();
+        encoder.pipe(socket);
+        encoder.write(ciphertext, () => {
           const encryptedSocket = wrapSocketWithEncryption(logger, socket, key);
           resolve(encryptedSocket);
         });
@@ -475,7 +481,7 @@ export class Sdk {
     const service = typeof options === "string" ? options : options.service;
     const token = await this.tokenProvider(ctx);
     if (!token) {
-      return Promise.reject("Unable to derive auth token to set up a tunnel! ee the docs at https://github.com/hardpointlabs/sdk to learn more")
+      return Promise.reject("Unable to derive auth token to set up a tunnel! See the docs at https://github.com/hardpointlabs/sdk to learn more")
     }
     return connectTunnel({
       logger: this.logger,
