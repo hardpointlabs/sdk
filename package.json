@@ -9,7 +9,14 @@
   "license": "Apache-2.0",
   "author": "Hardpoint Labs",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/sdk.js",
+  "exports": {
+    ".": "./dist/sdk.js",
+    "./logging": "./dist/logging.js",
+    "./auth": "./dist/auth.js",
+    "./request": "./dist/request.js",
+    "./streams": "./dist/streams.js"
+  },
   "types": "./dist/index.d.ts",
   "directories": {
     "src": "src",

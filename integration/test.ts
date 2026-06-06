@@ -1,4 +1,5 @@
-import { Sdk, consoleLogger } from "@hardpointlabs/sdk";
+import { Sdk } from "@hardpointlabs/sdk";
+import { consoleLogger } from "@hardpointlabs/sdk/logging";
 import * as http from 'node:http';
 
 const sdk = Sdk.init({orgId: process.env.HARDPOINT_ORG_ID!, logger: consoleLogger('trace')});
