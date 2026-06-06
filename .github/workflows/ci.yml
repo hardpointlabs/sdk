@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master]
 
 jobs:
   lint:
@@ -40,47 +39,14 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
+      - id: pack
+        run: echo "package=$(npm pack)" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-package
+          path: ${{ steps.pack.outputs.package }}
   integration-test:
     needs: [lint, typecheck, build]
-<<<<<<< Updated upstream
-    permissions:
-      id-token: write
-      contents: read
-    strategy:
-      matrix:
-        runtime: [node-22, deno, bun]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run build
-      - name: Setup Node 22
-        if: matrix.runtime == 'node-22'
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - name: Setup Deno
-        if: matrix.runtime == 'deno'
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - name: Setup Bun
-        if: matrix.runtime == 'bun'
-        uses: oven-sh/setup-bun@v2
-      - name: Integration test (${{ matrix.runtime }})
-        env:
-          HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
-        run: |
-          case "${{ matrix.runtime }}" in
-            node-22) npm run integration-test:node ;;
-            deno)    npm run integration-test:deno ;;
-            bun)     npm run integration-test:bun ;;
-          esac
-=======
     uses: ./.github/workflows/integration-test.yml
     secrets:
       HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
->>>>>>> Stashed changes
