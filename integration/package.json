@@ -9,8 +9,5 @@
   "devDependencies": {
     "@types/node": "*",
     "typescript": "*"
-  },
-  "dependencies": {
-    "@hardpointlabs/sdk": "../hardpointlabs-sdk-1.0.10.tgz"
   }
 }
