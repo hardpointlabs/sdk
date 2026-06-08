@@ -8,6 +8,7 @@ on:
 permissions:
   id-token: write
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -23,10 +24,11 @@ jobs:
       - run: npm run build
       - id: pack
         run: echo "package=$(npm pack)" >> $GITHUB_OUTPUT
+        working-directory: packages/sdk
       - uses: actions/upload-artifact@v7
         with:
           name: build-package
-          path: ${{ steps.pack.outputs.package }}
+          path: packages/sdk/${{ steps.pack.outputs.package }}
 
   integration-test:
     needs: [build]
@@ -42,19 +44,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: false
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
       - run: npm ci
-      - run: npm run build
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v6
+      - name: Create Release PR or Publish
+        uses: changesets/action@v1
         with:
-          extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/git
+          publish: npm run release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

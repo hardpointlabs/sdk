@@ -18,17 +18,19 @@ if (platform === "darwin") {
   process.exit(1);
 }
 
-const binaryPath = path.join(
-  process.cwd(),
-  "node_modules",
-  "fta-cli",
-  "binaries",
-  binaryDir,
-  "fta"
-);
+let binaryPath;
+let dir = process.cwd();
+while (dir !== path.dirname(dir)) {
+  const candidate = path.join(dir, "node_modules", "fta-cli", "binaries", binaryDir, "fta");
+  if (fs.existsSync(candidate)) {
+    binaryPath = candidate;
+    break;
+  }
+  dir = path.dirname(dir);
+}
 
-if (!fs.existsSync(binaryPath)) {
-  console.error(`FTA binary not found: ${binaryPath}`);
+if (!binaryPath) {
+  console.error("FTA binary not found");
   process.exit(1);
 }
 
