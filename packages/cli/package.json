@@ -1,0 +1,29 @@
+{
+  "name": "@hardpointlabs/cli",
+  "version": "0.0.0",
+  "description": "Hardpoint CLI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hardpointlabs/sdk"
+  },
+  "license": "Apache-2.0",
+  "author": "Hardpoint Labs",
+  "type": "module",
+  "bin": {
+    "cli": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "npx tsc",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "eslint": "^8.57.1",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@hardpointlabs/sdk": "*"
+  }
+}
