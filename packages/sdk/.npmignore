@@ -6,5 +6,4 @@ tsconfig.test.json
 benchmark.mjs
 .eslintrc.json
 tsconfig.json
-lib
 integration

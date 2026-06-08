@@ -18,6 +18,7 @@
     "./streams": "./dist/streams.js"
   },
   "types": "./dist/index.d.ts",
+  "files": ["dist", "lib", "CHANGELOG.md"],
   "directories": {
     "src": "src",
     "dist": "dist",

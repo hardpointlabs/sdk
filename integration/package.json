@@ -7,7 +7,10 @@
     "test": "node test.js"
   },
   "devDependencies": {
-    "@types/node": "*",
-    "typescript": "*"
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@hardpointlabs/sdk": "file:../packages/sdk/hardpointlabs-sdk-1.0.0.tgz"
   }
 }
