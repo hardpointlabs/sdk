@@ -1,3 +1,12 @@
+## [1.0.11](https://github.com/hardpointlabs/sdk/compare/v1.0.10...v1.0.11) (2026-06-08)
+
+
+### Bug Fixes
+
+* bun dependency loop ([569343e](https://github.com/hardpointlabs/sdk/commit/569343e59d9f8d866842b2567558df7b4386bbe1))
+* remove hardcoded sdk dependency from integration test, untrack bun.lock ([8257718](https://github.com/hardpointlabs/sdk/commit/8257718c09130b8984c1a930b827b6fed1087c49))
+* whitespace release test ([e5f0bf0](https://github.com/hardpointlabs/sdk/commit/e5f0bf0ce229ab69ff8491648884c3fbcc1c99f7))
+
 # 1.0.0 (2026-06-08)
 
 
