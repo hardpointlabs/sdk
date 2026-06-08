@@ -25,10 +25,11 @@ jobs:
       - id: pack
         run: echo "package=$(npm pack)" >> $GITHUB_OUTPUT
         working-directory: packages/sdk
+      - run: cp packages/sdk/${{ steps.pack.outputs.package }} .
       - uses: actions/upload-artifact@v7
         with:
           name: build-package
-          path: packages/sdk/${{ steps.pack.outputs.package }}
+          path: ${{ steps.pack.outputs.package }}
 
   integration-test:
     needs: [build]
