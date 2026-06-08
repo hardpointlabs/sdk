@@ -1,6 +1,6 @@
 {
   "name": "@hardpointlabs/cli",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Hardpoint CLI",
   "repository": {
     "type": "git",
@@ -23,8 +23,7 @@
     "eslint": "^8.57.1",
     "typescript": "^6.0.2"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "bugs": {
     "url": "https://github.com/hardpointlabs/sdk/issues"
   },
