@@ -24,6 +24,9 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@hardpointlabs/sdk": "*"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/hardpointlabs/sdk/issues"
+  },
+  "homepage": "https://github.com/hardpointlabs/sdk"
 }

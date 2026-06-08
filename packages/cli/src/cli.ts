@@ -7,7 +7,7 @@ import { consoleLogger } from "@hardpointlabs/sdk/logging";
 
 const commands: Record<string, () => Promise<void>> = {
   start: async () => {
-    console.log("Starting Hardpoint CLI...");
+    console.log("Hardpoint CLI starting...");
 
     const orgId = process.env.HARDPOINT_ORG_ID;
     if (!orgId) {
