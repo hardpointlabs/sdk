@@ -23,11 +23,11 @@ It's optimized to discover OIDC tokens from several runtime environments such as
 
 ## Repo layout
 
+- `integration/`: Integration test harness that installs the SDK from a tarball and exercises it against the live relay
 - `packages/sdk`: The SDK package (`@hardpointlabs/sdk`), contains:
   - `src/`: Main implementation directory, all TypeScript files
   - `dist/`: Output directory of compiled TS and type definitions
   - `lib/`: Anciliary support files; currently this only contains a copy of the Root CA certificate which the relay's PKI uses (when the SDK establishes a tunnel, the first thing it does is set up a TLS connection. Instead of using the standard certificate bundle, it should *only* trust remote certs signed by this Root CA). This file is copied into the `dist` directory for use at runtime. Other similar support files should live here and be copied accordingly during `build`
-  - `integration/`: Integration test harness that installs the SDK from a tarball and exercises it against the live relay
 - `packages/cli`: The CLI package (`@hardpointlabs/cli`), contains:
   - `src/`: Implementation directory
   - `dist/`: Output directory of compiled TS
