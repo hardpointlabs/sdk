@@ -34,6 +34,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    outputs:
+      package-name: ${{ steps.pack.outputs.package }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -51,5 +53,7 @@ jobs:
   integration-test:
     needs: [lint, typecheck, build]
     uses: ./.github/workflows/integration-test.yml
+    with:
+      package-name: ${{ needs.build.outputs.package-name }}
     secrets:
       HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
