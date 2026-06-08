@@ -43,7 +43,45 @@ It's optimized to discover OIDC tokens from several runtime environments such as
 - 2 spaces for tabs
 - Trim any trailing whitespace at the end of lines
 
+## Branching convention
+
+The branching strategy is simple- releases run from master. See the 'Releases' for more info on that. For features/fixes, check out a new branch and create a pull request (the `gh` command is available to the terminal). You can merge a feature branch to master when all the checks pass.
+
 ## Workflow
 
 1. Run `npm run build`, ensure this is working
 2. The most common possible failures of the build are TypeScript compilation errors, or quality degredations in FTA. Refactor any changes as necessary (without altering the public API surface), and re-run the build step until the quality arrives at an `OK` value. You can see more specifics regarding static analyzer metrics for each file by running `npx fta-cli . --json` from the project root.
+3. At the end of a unit of work, create a changeset- see the 'Releases' section for more details
+
+## Releases
+
+This monorepo uses [changesets](https://github.com/changesets/changesets) for versioning and
+releases. The release workflow runs automatically on merge to main and consumes any pending
+changesets.
+
+When you make changes intended for release, create a changeset file manually — do not run
+`npx changeset` interactively as it requires user input and will hang.
+
+Create a file at `.changeset/<short-kebab-description>.md` with this format:
+
+---
+"@hardpointlabs/sdk": patch
+---
+
+Brief description of the change.
+
+Valid bump types:
+- `patch`: bug fixes, internal changes, documentation
+- `minor`: new features, backwards compatible
+- `major`: breaking changes to public API
+
+Include only packages that have actually changed. Multiple packages can be included
+in one changeset if a single change affects more than one:
+
+---
+"@hardpointlabs/sdk": minor
+"@hardpointlabs/cli": patch
+---
+
+Do not manually edit `version` fields in any `package.json`. The release workflow
+handles all version bumps and changelog generation from the changeset files.
