@@ -47,10 +47,5 @@
   "bugs": {
     "url": "https://github.com/hardpointlabs/sdk/issues"
   },
-  "homepage": "https://github.com/hardpointlabs/sdk",
-  "release": {
-    "branches": [
-      "master"
-    ]
-  }
+  "homepage": "https://github.com/hardpointlabs/sdk"
 }

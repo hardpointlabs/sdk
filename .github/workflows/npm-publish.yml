@@ -1,13 +1,13 @@
-name: NPM Release
+name: Release
 
 on:
-  workflow_dispatch:
-  release:
-    types: [created]
+  push:
+    branches:
+      - master
 
 permissions:
-  id-token: write  # Required for OIDC
-  contents: read
+  id-token: write
+  contents: write
 
 jobs:
   build:
@@ -32,15 +32,25 @@ jobs:
     secrets:
       HARDPOINT_ORG_ID: ${{ secrets.HARDPOINT_ORG_ID }}
 
-  publish-npm:
+  release:
     needs: [integration-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
       - run: npm ci
       - run: npm run build
-      - run: npm publish
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
